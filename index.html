@@ -359,6 +359,20 @@ details.adv .row{margin-top:8px}
 .scan-box .scan-err{color:#fff;padding:24px;text-align:center;font-size:13.5px;line-height:1.6}
 .scan-status{display:flex;align-items:center;gap:10px;margin:10px 0 4px;font-size:13px;color:var(--text-2);min-height:22px}
 .scan-status .progress{flex:1;margin:0}
+.sync-show{display:flex;gap:18px;align-items:flex-start;justify-content:center;flex-wrap:wrap;margin-bottom:4px}
+.sync-show.with-recv .sync-qr canvas{width:min(280px,78vw,46vh)}
+.recv{flex:1 1 220px;max-width:280px;display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.recv-h{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650;color:var(--text-2)}
+.recv-h svg.i{color:var(--text-3)}
+.recv .scan-status{margin:2px 0 0;font-size:12.5px;flex-wrap:wrap;row-gap:6px}
+.recv .scan-status .progress{flex:1 1 100%}
+.scan-box.compact{border-radius:10px}
+.scan-box.compact .aim{inset:8% 12%;border-radius:12px}
+.scan-box.compact .scan-msg{font-size:12px;bottom:6px}
+.scan-box.compact .scan-err{font-size:12.5px;padding:14px;line-height:1.5}
+.sync-done{display:flex;gap:8px 10px;align-items:center;flex-wrap:wrap;background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:13.5px;font-weight:600}
+.sync-done .grow{flex:1;min-width:160px}
+.sync-qr.flip canvas{width:min(84vw,52vh,400px)}
 .install-card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin:0 0 14px;font-size:13px;color:var(--text-2);box-shadow:var(--shadow)}
 .install-card b{color:var(--text)}
 .install-card ol{margin:6px 0 0;padding-left:20px}
@@ -476,7 +490,7 @@ html,body{overscroll-behavior:none}
    · 不联网（见页头 CSP：connect-src 'none'），数据只写入你选择的本地文件
    ===================================================================== */
 const APP_NAME = '验证码保险箱';
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const FORMAT = 'codevault';
 const KDF_ITER = 600000;
 const LS_VAULT = 'codevault.local.v1';
@@ -818,6 +832,17 @@ function mergeVault(dst, src) {
     else delete tomb[id];  // 删除之后又在别处改过：保留条目
   }
   return st;
+}
+// 对方（theirs，刚扫到的完整数据）还缺的、这边（mine）有的内容。只把这些传回去：二维码张数少；没有就不用传。
+function vaultDelta(mine, theirs) {
+  const out = { version: 1, entries: [], deleted: {}, settings: { ...mine.settings }, meta: { createdAt: mine.meta.createdAt, lastExportAt: 0 } };
+  const t = new Map(theirs.entries.map(e => [e.id, e]));
+  for (const e of mine.entries) {
+    const te = t.get(e.id);
+    if (te ? mergeEntry(structuredClone(te), e) : !(theirs.deleted[e.id] >= e.updatedAt)) out.entries.push(e);
+  }
+  for (const [id, at] of Object.entries(mine.deleted)) if (!(theirs.deleted[id] >= at)) out.deleted[id] = at;
+  return out;
 }
 
 /* ---------------- TOTP (RFC 6238) ---------------- */
@@ -2936,7 +2961,7 @@ function overview() {
       h('div', { class: 'quick-tip' }, icon('sparkles'), h('div', null,
         h('b', null, '最快的存法'),
         h('p', null, IS_TOUCH
-          ? '在「新增」里粘贴网站给的整段备用码文字，会自动识别；开启两步验证时，点右上角的「扫一扫」扫网站显示的二维码。已经在电脑上存过？点右上角的「同步」，扫电脑上的二维码。'
+          ? '在「新增」里粘贴网站给的整段备用码文字，会自动识别；开启两步验证时，点右上角的「扫一扫」扫网站显示的二维码。已经在电脑上存过？电脑上点「同步」，这里点「扫一扫」对准电脑。'
           : '在网站上复制备用码后，回到这里直接按 Ctrl+V；或者把网站下载的 .txt 备用码文件拖进这个窗口。会预填识别到的码和账号；请对照数量，查看未加入的项，再点「添加」。'))),
       h('div', { class: 'eg' }, ['Google 备用码', 'GitHub 恢复码', 'Microsoft 恢复代码', 'Apple 恢复密钥', '2FA 密钥', '安全问题'].map(t => h('span', { class: 'badge' }, t))));
   }
@@ -2966,7 +2991,7 @@ function overview() {
           : ['当前数据保存在浏览器里，清除浏览器数据会导致丢失。' + backupMsg + '请定期导出备份。'])),
     h('section', { class: 'card' },
       h('div', { class: 'card-h' }, h('h3', null, icon('devices'), '电脑和手机同步'), h('span', { class: 'spacer' }), h('button', { class: 'btn sm', onclick: () => openSyncDialog() }, icon('qr', 'sm'), '同步')),
-      h('p', { class: 'hint', style: { color: 'var(--text-2)' } }, '一台设备「出示二维码」，另一台「扫一扫」，两边的内容就会合并，较新的修改为准，删除也会同步过去。全程不联网；也可以改用文件同步。')),
+      h('p', { class: 'hint', style: { color: 'var(--text-2)' } }, '电脑上点「同步」，手机上点「扫一扫」对准电脑；手机上也有修改的话，扫完会显示一个二维码，把手机转过来对着电脑摄像头，两边就一样了。较新的修改为准，删除也会同步。全程不联网；没有摄像头时可以用文件同步。')),
     h('section', { class: 'card' },
       h('div', { class: 'card-h' }, h('h3', null, icon('info'), '小贴士')),
       h('ul', { class: 'tips' },
@@ -3888,7 +3913,7 @@ function helpContent() {
       ? `全部内容加密后保存在「${S.store.name}」这个文件里，本程序不会联网（页面已禁止一切网络请求）。没有主密码，任何人拿到文件也看不到内容。`
       : `全部内容加密后保存在${THIS_LOCAL}的本地存储中，本程序不会联网。没有主密码，任何人都看不到内容。`),
     IS_WEB ? qa('手机版会联网吗？', '只在第一次打开和检查新版本时，从网址下载程序本身（就像安装、更新 App）。页面已禁止发出任何网络请求，保险箱里的数据从不上传；同步靠扫码或文件，不经过任何服务器。') : null,
-    qa('电脑和手机怎么同步？', '点右上角的「同步」：一台设备「出示二维码」，另一台「扫一扫」，两边的内容会合并，同一条目以较新的修改为准，删除也会同步。二维码里是用主密码加密的数据，被别人拍到也打不开。没有摄像头时可以用「文件同步」，通过微信、网盘传加密的 .vault 文件。'),
+    qa('电脑和手机怎么同步？', '电脑上点右上角的「同步」，手机上点「扫一扫」对准电脑：电脑上的内容先合并到手机；手机上也有修改的话，手机接着会显示一个二维码，把手机屏幕转过来对着电脑上方的摄像头，电脑收到后两边就完全一样了。同一条目以较新的修改为准，删除也会同步。二维码里是用主密码加密的数据，被别人拍到也打不开。没有摄像头时可以用「文件同步」，通过微信、网盘传加密的 .vault 文件。'),
     qa('用的是什么加密？', '主密码经过 PBKDF2-SHA256（60 万次迭代）生成密钥，数据用 AES-256-GCM 加密。主密码本身不会被保存。'),
     qa('忘记主密码怎么办？', '没有任何办法找回，这是为了保证别人也破解不了。请把主密码记牢，可以设置一个只有你能看懂的提示。'),
     qa('如何备份 / 换电脑？', S.store.kind === 'file'
@@ -4116,11 +4141,12 @@ function applyMerge(vault) {
 const PKT_MAGIC = [0x43, 0x56, 0x50, 1];
 const FRAME_BYTES = 190;  // 每张二维码装 190 字节（版本不超过 10），手机隔着屏幕也好扫
 async function pipeBytes(u8, ts) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(ts)).arrayBuffer()); }
-async function buildSyncPacket() {
-  const plain = enc.encode(JSON.stringify({ kind: 'codevault-sync', v: 1, at: Date.now(), from: DEVICE_NAME, vault: S.vault }));
-  let body = plain, flags = 0;
+// 标志位：1 = 内容已压缩；2 = 只是部分内容（扫完之后传回去的那部分修改），不能拿来新建保险箱
+async function buildSyncPacket(vault = S.vault, { partial = false } = {}) {
+  const plain = enc.encode(JSON.stringify({ kind: 'codevault-sync', v: 1, at: Date.now(), from: DEVICE_NAME, partial, vault }));
+  let body = plain, flags = partial ? 2 : 0;
   if (typeof CompressionStream === 'function') {
-    try { const z = await pipeBytes(plain, new CompressionStream('deflate')); if (z.length < plain.length) { body = z; flags = 1; } } catch {}
+    try { const z = await pipeBytes(plain, new CompressionStream('deflate')); if (z.length < plain.length) { body = z; flags |= 1; } } catch {}
   }
   const salt = b64d(S.header.kdf.salt), hint = enc.encode(str(S.header.hint).slice(0, 200));
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -4156,7 +4182,7 @@ function parseSyncPacket(u8) {
   try { hint = new TextDecoder('utf-8', { fatal: true }).decode(u8.subarray(o, o + hl)); } catch { bad(); }
   o += hl;
   if (!(iterations >= 100000 && iterations <= 10000000)) throw new Error('不支持的加密参数');
-  return { flags, iterations, salt, saltB64: b64e(salt), iv, hint, head: u8.slice(0, o), ct: u8.slice(o) };
+  return { flags, partial: !!(flags & 2), iterations, salt, saltB64: b64e(salt), iv, hint, head: u8.slice(0, o), ct: u8.slice(o) };
 }
 async function openSyncPacket(p, key) {
   let pt;
@@ -4167,7 +4193,7 @@ async function openSyncPacket(p, key) {
     const o = JSON.parse(dec.decode(pt));
     if (!o || o.kind !== 'codevault-sync' || !o.vault || typeof o.vault !== 'object') throw 0;
     const from = str(o.from).trim().slice(0, 20) || '另一台设备';
-    return { vault: normalizeVault(o.vault), from: /^[A-Za-z]/.test(from) ? ` ${from} ` : from, at: num(o.at) };  // 中文里夹英文名时两边留空格
+    return { vault: normalizeVault(o.vault), from: /^[A-Za-z]/.test(from) ? ` ${from} ` : from, name: from, at: num(o.at), partial: !!(p.flags & 2) };  // 中文里夹英文名时两边留空格
   } catch { throw new Error('同步数据无法读取（可能来自更新版本的程序）'); }
 }
 // 二维码一张装不下就切成多张轮流显示；每张带 4 字节包指纹、总张数、序号
@@ -4195,7 +4221,7 @@ function frameCollector() {
       const id = Array.from(f.subarray(0, 4)).join(','), total = f[4], idx = f[5];
       if (id !== sid || total !== n) { sid = id; n = total; parts = new Array(n).fill(null); got = 0; }
       if (!parts[idx]) { parts[idx] = f.slice(6); got++; }
-      if (got < n) return { state: 'progress', got, n };
+      if (got < n) return { state: 'progress', got, n, sid };
       const pkt = new Uint8Array(parts.reduce((a, p) => a + p.length, 0));
       let o = 0;
       for (const p of parts) { pkt.set(p, o); o += p.length; }
@@ -4204,6 +4230,7 @@ function frameCollector() {
   };
 }
 async function packetIntact(r) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', r.packet)).slice(0, 4)).join(',') === r.sid; }
+const frameSid = text => { try { return Array.from(QR.b45decode(text.slice(SYNC_PREFIX.length)).subarray(0, 4)).join(','); } catch { return ''; } };
 function drawQR(canvas, q) {
   const quiet = 4, n = q.size + quiet * 2, s = Math.max(2, Math.ceil(640 / n));
   if (canvas.width !== n * s) canvas.width = canvas.height = n * s;
@@ -4233,21 +4260,22 @@ async function unlockPacket(p, { useCurrent = true, title, message }) {
     }
   }
 }
-// 已解锁时收到另一台设备的同步包：合并进来
-async function applySyncPacket(packet) {
-  if (!S.key || S.locking) return false;
+// 已解锁时收到另一台设备的同步包：合并进来。成功返回 { from, name, vault（对方发来的数据）, partial, stats, summary }，否则 null
+async function applySyncPacket(packet, { quiet = false } = {}) {
+  if (!S.key || S.locking) return null;
   const session = S.key;
   let p, res;
   try {
     p = parseSyncPacket(packet);
     res = await unlockPacket(p, { title: '输入另一台设备的主密码', message: '这份同步数据是用另一个主密码加密的（两台设备的主密码不一样），输入那台设备的主密码才能合并。' });
-  } catch (e) { toast(e.message, { type: 'error', duration: 6000 }); return false; }
-  if (!res || S.key !== session || S.locking) return false;
+  } catch (e) { toast(e.message, { type: 'error', duration: 6000 }); return null; }
+  if (!res || S.key !== session || S.locking) return null;
   const st = applyMerge(res.payload.vault);
   const parts = [st.added && `新增 ${st.added} 条`, st.updated && `更新 ${st.updated} 条`, st.removed && `删除 ${st.removed} 条`].filter(Boolean);
-  toast(parts.length ? `已合并${res.payload.from}上的内容：${parts.join('，')}` : `${res.payload.from}上的内容这里都有，没有需要合并的`.trim(), { duration: 6000 });
+  const summary = parts.length ? `已合并${res.payload.from}上的内容：${parts.join('，')}` : `${res.payload.from}上的内容这里都有，没有需要合并的`.trim();
+  if (!quiet) toast(summary, { duration: 6000 });
   if (!res.same) await offerSamePassword(res.key, p);
-  return true;
+  return { ...res.payload, stats: st, summary };
 }
 async function offerSamePassword(key, p) {
   if (!S.key || S.locking || S.readOnly) return;
@@ -4293,6 +4321,7 @@ async function importFromScanNew() {
   let p, res;
   try {
     p = parseSyncPacket(r.packet);
+    if (p.partial) { toast('这只是另一台设备传回来的部分修改，不能用来新建。请在那台设备上点「同步」→「出示二维码」，再扫一次。', { type: 'error', duration: 7000 }); return; }
     res = await unlockPacket(p, { useCurrent: false, title: '输入主密码', message: '输入另一台设备上验证码保险箱的主密码。导入后，这台设备也用这个主密码解锁。' });
   } catch (e) { toast(e.message, { type: 'error', duration: 6000 }); return; }
   if (!res || S.key) return;
@@ -4364,110 +4393,182 @@ async function scanImageFile(file) {
   } finally { if (bmp.close) bmp.close(); }
   return null;
 }
+// 摄像头读码器，可以放进任何窗口：读到同步二维码（收齐全部张数）或别的二维码时调用一次 onResult。
+// syncFrames：收集多张轮换的同步二维码；syncOnly：只要同步二维码，别的不理；isOwn(sid)：是这台设备自己出示的码就不理
+function qrReader({ sub = '', syncFrames = true, syncOnly = false, compact = false, isOwn = null, onResult }) {
+  let stream = null, timer = 0, alive = true, starting = false, finished = false, frameNo = 0;
+  const video = h('video', { playsinline: true, autoplay: true, muted: true, 'aria-label': '摄像头画面' });
+  video.muted = true;
+  const msg = h('div', { class: 'scan-msg' }, '正在打开摄像头…');
+  const box = h('div', { class: 'scan-box' + (compact ? ' compact' : '') }, video, h('div', { class: 'aim' }), msg);
+  const bar = h('i', { style: { width: '0%' } });
+  const prog = h('div', { class: 'progress', hidden: true }, bar);
+  const statusTxt = h('span', null, sub);
+  const status = h('div', { class: 'scan-status', role: 'status', 'aria-live': 'polite' }, statusTxt, prog);
+  const collector = frameCollector();
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const maxSide = IS_TOUCH ? 960 : 1280;  // 电脑上不缩小画面：电脑摄像头看手机屏幕时二维码比较小
+  const stopCam = () => { clearTimeout(timer); timer = 0; if (stream) for (const t of stream.getTracks()) t.stop(); stream = null; try { video.srcObject = null; } catch {} };
+  const finish = r => { if (finished || !alive) return; finished = true; stop(); onResult(r); };
+  const feed = async text => {
+    if (!alive || finished) return;
+    if (syncFrames && text.startsWith(SYNC_PREFIX)) {
+      if (isOwn && isOwn(frameSid(text))) return;
+      const r = collector.add(text);
+      if (r.state === 'progress') {
+        statusTxt.textContent = `已收到 ${r.got} / ${r.n} 张，继续对准，二维码会自动轮换…`;
+        prog.hidden = false; bar.style.width = (r.got / r.n * 100) + '%';
+      } else if (r.state === 'done') {
+        if (await packetIntact(r)) { bar.style.width = '100%'; finish({ type: 'sync', packet: r.packet, sid: r.sid }); }
+        else { collector.reset(); statusTxt.textContent = '收到的数据对不上，正在重新接收…'; }
+      }
+      return;
+    }
+    if (syncOnly) return;
+    finish({ type: 'text', text });
+  };
+  const tick = () => {
+    timer = 0;
+    if (!alive || !stream) return;
+    if (video.readyState >= 2 && video.videoWidth) {
+      const vw = video.videoWidth, vh = video.videoHeight, sc = Math.min(1, maxSide / Math.max(vw, vh));
+      const w = Math.round(vw * sc), hh = Math.round(vh * sc);
+      if (canvas.width !== w || canvas.height !== hh) { canvas.width = w; canvas.height = hh; }
+      ctx.drawImage(video, 0, 0, w, hh);
+      let r = null;
+      try { r = QR.scanRGBA(ctx.getImageData(0, 0, w, hh).data, w, hh, { invert: ++frameNo % 4 === 0 }); } catch (e) { console.warn('识别出错', e); }
+      if (r) feed(r.text);
+    }
+    if (alive && stream) timer = setTimeout(tick, 50);
+  };
+  const start = async () => {
+    if (starting || !alive || stream) return;
+    starting = true;
+    if (!box.contains(video)) box.replaceChildren(video, h('div', { class: 'aim' }), msg);
+    msg.textContent = '正在打开摄像头…';
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('不支持'), { name: 'NotSupportedError' });
+      const s = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+      if (!alive) { for (const t of s.getTracks()) t.stop(); return; }
+      stream = s;
+      video.srcObject = s;
+      const track = s.getVideoTracks()[0];
+      const fm = track && track.getSettings ? track.getSettings().facingMode : '';
+      video.classList.toggle('mirror', fm === 'user' || (!fm && !IS_TOUCH));  // 前置摄像头像照镜子一样显示，方便对准
+      try { await video.play(); } catch {}
+      msg.textContent = compact ? '把手机屏幕对着这里' : syncFrames ? '把二维码放进框里，拿稳一点' : '把二维码放进框里';
+      tick();
+    } catch (e) {
+      stopCam();
+      box.replaceChildren(h('div', { class: 'scan-err' }, cameraError(e)));
+    } finally { starting = false; }
+  };
+  const onVis = () => { if (document.visibilityState === 'hidden') stopCam(); else if (alive) start(); };
+  document.addEventListener('visibilitychange', onVis);
+  function stop() { alive = false; stopCam(); document.removeEventListener('visibilitychange', onVis); }
+  return { el: h('div', { class: 'qr-reader' }, box, status), start, stop, feed };
+}
 // 打开摄像头扫二维码。返回 { type: 'sync', packet } / { type: 'text', text } / null（取消）
-// syncFrames：是否收集多张轮换的同步二维码
 function scanQR({ title = '扫一扫', sub = '', syncFrames = true } = {}) {
   return new Promise(resolve => {
-    let result = null, stream = null, timer = 0, alive = true, starting = false, finishing = false, frameNo = 0;
-    const video = h('video', { playsinline: true, autoplay: true, muted: true, 'aria-label': '摄像头画面' });
-    video.muted = true;
-    const msg = h('div', { class: 'scan-msg' }, '正在打开摄像头…');
-    const box = h('div', { class: 'scan-box' }, video, h('div', { class: 'aim' }), msg);
-    const bar = h('i', { style: { width: '0%' } });
-    const prog = h('div', { class: 'progress', hidden: true }, bar);
-    const statusTxt = h('span', null, sub);
-    const status = h('div', { class: 'scan-status', role: 'status', 'aria-live': 'polite' }, statusTxt, prog);
-    const collector = frameCollector();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const stopCam = () => { clearTimeout(timer); timer = 0; if (stream) for (const t of stream.getTracks()) t.stop(); stream = null; try { video.srcObject = null; } catch {} };
-    const finish = r => { if (finishing) return; finishing = true; result = r; close(); };
-    const onText = async text => {
-      if (!alive || finishing) return;
-      if (syncFrames && text.startsWith(SYNC_PREFIX)) {
-        const r = collector.add(text);
-        if (r.state === 'progress') {
-          statusTxt.textContent = `已收到 ${r.got} / ${r.n} 张，继续对准，二维码会自动轮换…`;
-          prog.hidden = false; bar.style.width = (r.got / r.n * 100) + '%';
-        } else if (r.state === 'done') {
-          if (await packetIntact(r)) { bar.style.width = '100%'; finish({ type: 'sync', packet: r.packet }); }
-          else { collector.reset(); statusTxt.textContent = '收到的数据对不上，正在重新接收…'; }
-        }
-        return;
-      }
-      finish({ type: 'text', text });
-    };
-    const tick = () => {
-      timer = 0;
-      if (!alive || !stream) return;
-      if (video.readyState >= 2 && video.videoWidth) {
-        const vw = video.videoWidth, vh = video.videoHeight, sc = Math.min(1, 960 / Math.max(vw, vh));
-        const w = Math.round(vw * sc), hh = Math.round(vh * sc);
-        if (canvas.width !== w || canvas.height !== hh) { canvas.width = w; canvas.height = hh; }
-        ctx.drawImage(video, 0, 0, w, hh);
-        let r = null;
-        try { r = QR.scanRGBA(ctx.getImageData(0, 0, w, hh).data, w, hh, { invert: ++frameNo % 4 === 0 }); } catch (e) { console.warn('识别出错', e); }
-        if (r) onText(r.text);
-      }
-      if (alive && stream) timer = setTimeout(tick, 50);
-    };
-    const start = async () => {
-      if (starting || !alive || stream) return;
-      starting = true;
-      if (!box.contains(video)) box.replaceChildren(video, h('div', { class: 'aim' }), msg);
-      msg.textContent = '正在打开摄像头…';
-      try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('不支持'), { name: 'NotSupportedError' });
-        const s = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
-        if (!alive) { for (const t of s.getTracks()) t.stop(); return; }
-        stream = s;
-        video.srcObject = s;
-        const track = s.getVideoTracks()[0];
-        const fm = track && track.getSettings ? track.getSettings().facingMode : '';
-        video.classList.toggle('mirror', fm === 'user' || (!fm && !IS_TOUCH));  // 前置摄像头像照镜子一样显示，方便对准
-        try { await video.play(); } catch {}
-        msg.textContent = syncFrames ? '把二维码放进框里，拿稳一点' : '把二维码放进框里';
-        tick();
-      } catch (e) {
-        stopCam();
-        box.replaceChildren(h('div', { class: 'scan-err' }, cameraError(e)));
-      } finally { starting = false; }
-    };
-    const onVis = () => { if (document.visibilityState === 'hidden') stopCam(); else if (alive) start(); };
-    document.addEventListener('visibilitychange', onVis);
+    let result = null;
+    const reader = qrReader({ sub, syncFrames, onResult: r => { result = r; close(); } });
     const imgBtn = h('button', { type: 'button', class: 'btn left', title: '识别截图或照片里的二维码', onclick: () => pickImage(async f => {
       const text = await scanImageFile(f);
-      if (!alive) return;
-      if (text) onText(text); else toast('图片里没有找到能识别的二维码', { type: 'error' });
+      if (text) reader.feed(text); else toast('图片里没有找到能识别的二维码', { type: 'error' });
     }) }, icon('image', 'sm'), '从图片识别');
     const { close } = openDialog({
-      title, size: 'sm', body: [box, status],
+      title, size: 'sm', body: reader.el,
       footer: [imgBtn, h('button', { type: 'button', class: 'btn', onclick: () => close() }, '取消')],
-      onClose: () => { alive = false; stopCam(); document.removeEventListener('visibilitychange', onVis); resolve(result); },
+      onClose: () => { reader.stop(); resolve(result); },
     });
-    start();
+    reader.start();
   });
+}
+// 手机扫完电脑之后：把这边多出来的修改显示成二维码，让电脑摄像头扫回去；两边已经一样就直接结束
+async function sendBack(got) {
+  if (!got || !S.key || S.locking) return;
+  if (got.partial) { toast(got.summary, { duration: 6000 }); return; }  // 扫的是对方传回来的部分修改：合并完就结束
+  const delta = vaultDelta(S.vault, got.vault);
+  const n = delta.entries.length + Object.keys(delta.deleted).length;
+  const other = got.name || '另一台设备', toPC = other === '电脑';
+  if (!n) {
+    const st = got.stats || {};
+    toast(st.added || st.updated || st.removed ? `${got.summary}。两边现在完全一致了` : `和${other}的内容已经一致，不用同步`, { duration: 6000 });
+    return;
+  }
+  let frames;
+  try { frames = await packetFrames(await buildSyncPacket(delta, { partial: true })); }
+  catch (e) { toast('生成二维码失败：' + e.message + '。可以改用「同步」→「文件同步」。', { type: 'error', duration: 6000 }); return; }
+  if (!S.key || S.locking) return;
+  const canvas = h('canvas', { role: 'img', 'aria-label': '传回去的二维码' });
+  const counter = h('span');
+  const dots = h('div', { class: 'dots' });
+  const qs = frames.map(f => QR.encode(f, { ecl: 'M', minVersion: QR.encode(frames[0], { ecl: 'M' }).version }));
+  let i = 0, timer = 0;
+  const paint = () => {
+    drawQR(canvas, qs[i]);
+    counter.textContent = qs.length > 1 ? `共 ${qs.length} 张，自动轮换中` : '';
+    dots.replaceChildren(...(qs.length > 1 ? qs.map((_, k) => h('i', { class: k === i ? 'on' : '' })) : []));
+    i = (i + 1) % qs.length;
+  };
+  const { close } = openDialog({
+    title: `最后一步：让${other}扫回去`, size: 'sm',
+    body: [
+      h('div', { class: 'sync-done' }, icon('check', 'sm'), h('span', { class: 'grow' }, got.summary)),
+      h('p', { class: 'confirm-msg' }, toPC
+        ? `这台${DEVICE_NAME === 'iPad' ? ' iPad ' : '手机'}上还有 ${n} 处修改，电脑上没有。把屏幕转过来，对着电脑屏幕上方的摄像头（离 15–25 厘米），电脑的「同步」窗口会自动接收。电脑显示「已合并」就完成了。`
+        : `这台设备上还有 ${n} 处修改，${other}上没有。在${other}上点「同步」→「扫一扫」，对准这个二维码。`),
+      h('div', { class: 'sync-qr flip' }, canvas, h('div', { class: 'frames' }, counter), dots),
+      h('p', { class: 'hint' }, `屏幕亮一点更好扫。${other}没有摄像头的话，可以改用「同步」→「文件同步」。`)],
+    footer: [h('button', { type: 'button', class: 'btn primary', onclick: () => close() }, '完成')],
+    onClose: () => clearInterval(timer),
+  });
+  paint();
+  if (qs.length > 1) timer = setInterval(paint, 450);
 }
 
 /* ---------------- 同步窗口 ---------------- */
 function openSyncDialog(tab0) {
   if (!S.key || S.locking) return;
   const session = S.key, other = IS_TOUCH ? '电脑' : '手机';
-  let timer = 0, frames = null;
+  let timer = 0, frames = null, ownSid = '', reader = null, received = null, curTab = '', renderSeq = 0;
+  const skipped = new Set();  // 这次没合并成（取消了输入密码等）的同步包：同一窗口里不再反复读它
   const panel = h('div', { role: 'tabpanel' });
   const chips = {};
   const tabs = h('div', { class: 'filters', role: 'tablist', style: { padding: '0 0 14px' } },
     [['show', '出示二维码', 'qr'], ['scan', '扫一扫', 'scan'], ['file', '文件同步', 'file']].map(([id, label, ic]) =>
       (chips[id] = h('button', { type: 'button', class: 'chip', role: 'tab', onclick: () => setTab(id) }, icon(ic, 'xs'), label))));
+  const stopReader = () => { if (reader) { reader.stop(); reader = null; } };
+  // 电脑摄像头收到手机传回来的修改：合并，然后用合并后的内容重新生成二维码（手机还没扫的话，扫到的就是全部）
+  const onReceived = async r => {
+    reader = null;
+    if (r.type !== 'sync' || S.key !== session || S.locking) return;
+    const got = await applySyncPacket(r.packet, { quiet: true });
+    if (S.key !== session || S.locking) return;
+    if (got) { received = got; frames = null; toast(got.summary, { duration: 6000 }); }
+    else if (r.sid) skipped.add(r.sid);
+    if (curTab === 'show' && panel.isConnected) setTab('show');  // 没合并成（比如取消了输入密码）就重新开始等
+  };
   const showPanel = () => {
     const canvas = h('canvas', { role: 'img', 'aria-label': '同步二维码' });
     const counter = h('span', null, '正在生成…');
     const dots = h('div', { class: 'dots' });
     const wrap = h('div', { class: 'sync-qr' }, canvas, h('div', { class: 'frames' }, counter), dots);
+    // 电脑：一边出示二维码，一边用摄像头等手机转过来（手机扫完后会显示它这边多出来的修改）
+    let recv = null;
+    if (!IS_TOUCH && !received) {
+      reader = qrReader({ compact: true, syncOnly: true, sub: '等手机扫完、把屏幕转过来…', isOwn: sid => !!sid && (sid === ownSid || skipped.has(sid)), onResult: onReceived });
+      recv = h('div', { class: 'recv' }, h('div', { class: 'recv-h' }, icon('scan', 'sm'), '接收手机上的修改'), reader.el);
+      reader.start();
+    }
+    const mine = ++renderSeq;  // 只画最新这一次渲染的二维码（不能靠检查元素是否已挂上：已有二维码时这里会同步执行，元素还没挂上）
     (async () => {
       try {
         frames = frames || await packetFrames(await buildSyncPacket());
-        if (!panel.contains(wrap) || S.key !== session) return;
+        ownSid = frameSid(frames[0]);
+        if (mine !== renderSeq || curTab !== 'show' || S.key !== session) return;
         const ver = QR.encode(frames[0], { ecl: 'M' }).version;
         const qs = frames.map(f => QR.encode(f, { ecl: 'M', minVersion: ver }));
         let i = 0;
@@ -4482,20 +4583,32 @@ function openSyncDialog(tab0) {
         if (qs.length > 40) counter.textContent += '。内容较多，扫码要等一会儿，也可以改用「文件同步」';
       } catch (e) { counter.textContent = '生成二维码失败：' + e.message + '。可以改用「文件同步」。'; }
     })();
-    return [wrap,
-      h('ol', { class: 'sync-steps' },
-        h('li', null, `在${other}上打开验证码保险箱：` + (IS_TOUCH ? '解锁后点右上角的「同步」，选「扫一扫」。' : '第一次在手机上用，点「从电脑扫码导入」；已经在用，解锁后点右上角的「扫一扫」。')),
-        h('li', null, '对准这个二维码，等提示收到全部内容。'),
-        h('li', null, '两边的内容会合并：同一条目以较新的修改为准，删除也会同步过去。')),
-      h('p', { class: 'hint' }, `二维码里是用主密码加密的数据，被别人拍到也打不开。要把${other}上的修改也合并到这里，再用「扫一扫」扫${other}出示的二维码。`)];
+    const done = received ? h('div', { class: 'sync-done', role: 'status' }, icon('check', 'sm'),
+      h('span', { class: 'grow' }, received.summary + '。两边现在一致了。'),
+      h('button', { type: 'button', class: 'btn sm', onclick: () => close() }, '完成')) : null;
+    const steps = IS_TOUCH
+      ? h('ol', { class: 'sync-steps' },
+        h('li', null, '在电脑上打开验证码保险箱，点右上角的「同步」。'),
+        h('li', null, '把这个二维码对着电脑屏幕上方的摄像头，电脑会自动接收并合并。'),
+        h('li', null, '要把电脑上的修改也拿过来：点上面的「扫一扫」，对准电脑上的二维码。'))
+      : h('ol', { class: 'sync-steps' },
+        h('li', null, '在手机上打开验证码保险箱，解锁后点右上角的「扫一扫」，对准这里的二维码。（第一次在手机上用：点「从电脑扫码导入」）'),
+        h('li', null, '手机上也有修改的话，扫完会显示一个二维码：把手机屏幕转过来，对着电脑屏幕上方的摄像头。'),
+        h('li', null, '这里显示「已合并」就完成了。两边的内容合并在一起，同一条目以较新的修改为准，删除也会同步。'));
+    return [done, h('div', { class: 'sync-show' + (recv ? ' with-recv' : '') }, wrap, recv), steps,
+      h('p', { class: 'hint' }, '二维码里是用主密码加密的数据，被别人拍到也打不开。')];
   };
   const scanPanel = () => [
-    h('p', { class: 'confirm-msg' }, `扫${other}上「出示二维码」里的二维码，把那边的内容合并到这里。网站开启两步验证时显示的二维码也能扫。`),
+    h('p', { class: 'confirm-msg' }, IS_TOUCH
+      ? '对准电脑「同步」窗口里的二维码：先把电脑上的内容合并到这里；这边也有修改的话，接着会显示一个二维码，把手机转过来让电脑摄像头扫一下就行。网站开启两步验证时显示的二维码也能扫。'
+      : `扫${other}上「出示二维码」里的二维码，把那边的内容合并到这里。网站开启两步验证时显示的二维码也能扫。`),
     h('button', { type: 'button', class: 'btn primary block', onclick: async () => {
       const r = await scanQR({ title: '扫一扫', sub: `对准${other}上的同步二维码` });
       if (!r || S.key !== session || S.locking) return;
-      if (r.type === 'sync') { if (await applySyncPacket(r.packet)) close(); }
-      else { close(); await handleScannedText(r.text); }
+      if (r.type === 'sync') {
+        const got = await applySyncPacket(r.packet, { quiet: IS_TOUCH });
+        if (got) { close(); if (IS_TOUCH) await sendBack(got); }
+      } else { close(); await handleScannedText(r.text); }
     } }, icon('scan'), '打开摄像头扫码')];
   const filePanel = () => [
     h('p', { class: 'confirm-msg' }, '没有摄像头，或者内容很多时，可以用文件同步：'),
@@ -4508,20 +4621,22 @@ function openSyncDialog(tab0) {
       h('button', { type: 'button', class: 'btn', onclick: async () => { if (await importBackup()) close(); } }, icon('upload', 'sm'), '导入并合并')),
     h('p', { class: 'hint', style: { marginTop: '10px' } }, '文件是加密的，用导出时的主密码打开。')];
   const setTab = id => {
-    clearInterval(timer); timer = 0;
+    clearInterval(timer); timer = 0; stopReader(); curTab = id;
     for (const [k, b] of Object.entries(chips)) { b.setAttribute('aria-pressed', String(k === id)); b.setAttribute('aria-selected', String(k === id)); }
-    panel.replaceChildren(...(id === 'show' ? showPanel() : id === 'scan' ? scanPanel() : filePanel()));
+    panel.replaceChildren(...(id === 'show' ? showPanel() : id === 'scan' ? scanPanel() : filePanel()).filter(Boolean));
   };
-  const { close } = openDialog({ title: '电脑和手机同步', body: [tabs, panel], onClose: () => clearInterval(timer) });
+  const { close } = openDialog({ title: '电脑和手机同步', body: [tabs, panel], onClose: () => { clearInterval(timer); stopReader(); curTab = ''; } });
   setTab(tab0 || (IS_TOUCH ? 'scan' : 'show'));
 }
 // 主界面的「扫一扫」：同步二维码就合并，两步验证二维码就新建条目
 async function scanAnything() {
   if (!S.key || S.locking) return;
-  const r = await scanQR({ title: '扫一扫', sub: '对准另一台设备上的同步二维码，或网站开启两步验证时显示的二维码' });
+  const r = await scanQR({ title: '扫一扫', sub: '对准电脑「同步」窗口里的二维码，或网站开启两步验证时显示的二维码' });
   if (!r || !S.key || S.locking) return;
-  if (r.type === 'sync') await applySyncPacket(r.packet);
-  else await handleScannedText(r.text);
+  if (r.type === 'sync') {
+    const got = await applySyncPacket(r.packet, { quiet: IS_TOUCH });
+    if (got && IS_TOUCH) await sendBack(got);  // 手机：这边也有修改的话，接着显示二维码让电脑扫回去
+  } else await handleScannedText(r.text);
 }
 async function handleScannedText(text) {
   if (!S.key || S.locking) return;
