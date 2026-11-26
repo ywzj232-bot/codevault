@@ -806,6 +806,17 @@ body.privacy #app,body.privacy dialog{filter:blur(18px);opacity:.2}
 /* —— iPhone：状态栏和背景之间的过渡带（颜色由 TopBar 按背景最上沿设置，状态栏也是同一个颜色）—— */
 #aurora .topfade{display:none;position:absolute;left:0;right:0;top:0;height:120px}
 html.ios-bar #aurora .topfade{display:block}
+
+/* —— 同步提醒：账号列表最上面的一条，点一下打开同步，右边的 × 是「稍后再提醒」—— */
+.synctip{margin:18px 16px 0;border-radius:24px;padding:10px 10px 10px 12px;display:flex;align-items:center;gap:8px}
+.synctip-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:2px 0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.synctip .orb{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;color:#fff;background:linear-gradient(150deg,#ffc24d,#ff7a1a);box-shadow:inset 0 1px 1px rgba(255,255,255,.45),0 6px 16px -6px rgba(255,122,26,.6)}
+.synctip .orb svg{width:20px;height:20px}
+.synctip .t{display:flex;flex-direction:column;min-width:0;line-height:1.35}
+.synctip .t b{font-weight:600;font-size:15px}
+.synctip .t span{font-size:12.5px;color:var(--ink2)}
+.synctip-x{width:30px;height:30px;flex:none;border-radius:50%;border:0;display:grid;place-items:center;background:var(--fill);color:var(--ink2);cursor:pointer}
+.synctip-x svg{width:13px;height:13px}
 </style>
 </head>
 <body>
@@ -829,7 +840,7 @@ html.ios-bar #aurora .topfade{display:block}
    · 不联网（见页头 CSP：connect-src 'none'），数据只写入你选择的本地文件
    ===================================================================== */
 const APP_NAME = '验证码保险箱';
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 const FORMAT = 'codevault';
 const KDF_ITER = 600000;
 const LS_VAULT = 'codevault.local.v1';
@@ -3756,7 +3767,7 @@ function renderList() {
   const s = securityStats();
   $('#count-line').textContent = E.length ? `${E.length} 个账号 · ` : '';
   const showTop = !q && S.ui.filter === 'all';
-  $('#home-top').replaceChildren(...(E.length ? (showTop ? [ringsCard(s), walletSection()] : []) : [emptyCard()]).filter(Boolean));
+  $('#home-top').replaceChildren(...(E.length ? (showTop ? [SyncNote.view(), ringsCard(s), walletSection()] : []) : [emptyCard()]).filter(Boolean));
   const list = visibleEntries();
   const head = $('#list-head');
   head.hidden = !E.length;
@@ -5823,6 +5834,76 @@ const TopBar = (() => {
     update() { last = null; tick(); },
   };
 })();
+/* ---------------- 同步提醒 ---------------- */
+// 这台设备上改过、还没同步到另一台设备的内容，在账号列表最上面提醒一下，点一下就打开同步。
+// 什么时候算「同步过」：
+//   · 合并了对方的完整数据（扫了对方的同步码、导入了对方的文件）：记下这一刻，以及当时对方还缺哪些条目；
+//   · 对方肯定拿到了这边的全部内容：收到对方传回来的修改（对方是扫完这边才传回来的）、
+//     手机「最后一步」的二维码出示满 2.5 秒后关掉、出示自己的同步二维码满 3 秒、导出同步文件或备份、从电脑扫码新建。
+// 之后新改的条目（修改时间晚于那一刻）和新删的条目，都算还没同步。合并进来的条目带的是对方的修改时间，不会被算进去。
+// 记录存在这台设备上，按保险箱分开（用创建时间区分，改主密码也不受影响）；只有时间和随机的条目编号，不含任何内容。
+const SyncNote = (() => {
+  const KEY = 'codevault.sync.v1';
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+  const vid = () => (S.vault && S.vault.meta ? String(S.vault.meta.createdAt || '') : '');
+  const get = () => { const k = vid(); return k ? load()[k] || null : null; };
+  function put(rec) {
+    const k = vid();
+    if (!k) return;
+    const all = load();
+    all[k] = { ...(all[k] || {}), ...rec };
+    const keys = Object.keys(all);
+    if (keys.length > 5) for (const x of keys.sort((a, b) => (all[a].at || 0) - (all[b].at || 0)).slice(0, keys.length - 5)) delete all[x];  // 只留最近 5 个保险箱
+    try { localStorage.setItem(KEY, JSON.stringify(all)); } catch {}
+  }
+  // 「这一刻」取现在和保险箱里最新的修改时间中较晚的：另一台设备的时钟快一点，刚同步过来的条目也不会被当成新修改
+  const newest = () => {
+    let t = Date.now();
+    for (const e of S.vault.entries) if (e.updatedAt > t) t = e.updatedAt;
+    for (const d of Object.values(S.vault.deleted)) if (+d > t) t = +d;
+    return t;
+  };
+  const other = () => (IS_TOUCH ? '电脑' : '手机');
+  const refresh = () => { if (S.vault && $('#home-top')) renderList(); };
+  // 对方已经有这边的全部内容了
+  function mark() { if (!S.vault) return; put({ at: newest(), ids: [], snooze: 0, snoozeN: 0 }); refresh(); }
+  // 刚合并了对方的完整数据：对方还缺的，就是这边多出来的那些
+  function merged(theirs) {
+    if (!S.vault || !theirs) return;
+    const d = vaultDelta(S.vault, theirs);
+    put({ at: newest(), ids: [...d.entries.map(e => e.id), ...Object.keys(d.deleted)], snooze: 0, snoozeN: 0 });
+  }
+  // 还没同步过去的条数（同一个条目改了几处只算一处）；从没记录过时返回 null
+  function pending() {
+    const r = get();
+    if (!r || !S.vault) return null;
+    const live = new Set(S.vault.entries.map(e => e.id)), set = new Set();
+    for (const id of r.ids || []) if (live.has(id) || S.vault.deleted[id]) set.add(id);
+    for (const e of S.vault.entries) if (e.updatedAt > r.at) set.add(e.id);
+    for (const [id, t] of Object.entries(S.vault.deleted)) if (+t > r.at) set.add(id);
+    return { n: set.size, at: r.at };
+  }
+  const ago = t => {
+    const d = Date.now() - t;
+    return d < 6e4 ? '刚刚' : d < 36e5 ? Math.floor(d / 6e4) + ' 分钟前' : d < 864e5 ? Math.floor(d / 36e5) + ' 小时前' : Math.floor(d / 864e5) + ' 天前';
+  };
+  // 「稍后」：3 天内、没有更多新修改就不再提醒
+  function snooze() { const p = pending(); put({ snooze: Date.now() + 3 * 864e5, snoozeN: p ? p.n : 0 }); refresh(); }
+  function view() {
+    if (!S.vault || !S.vault.entries.length) return null;
+    const r = get(), p = pending();
+    if (p && !p.n) return null;
+    if (r && r.snooze > Date.now() && (p ? p.n : 0) <= (r.snoozeN || 0)) return null;
+    const title = p ? `有 ${p.n} 处修改还没同步到${other()}` : `和${other()}同步一下吧`;
+    const sub = p ? `上次同步：${ago(p.at)} · 点这里同步` : '同步一次以后，这里会提醒你哪些修改还没同步过去';
+    return h('div', { class: 'synctip panel st', style: '--i:1', role: 'group', 'aria-label': '同步提醒' },
+      h('button', { type: 'button', class: 'synctip-main press', onclick: () => openSyncDialog() },
+        h('span', { class: 'orb' }, icon('refresh')),
+        h('span', { class: 't' }, h('b', null, title), h('span', null, sub))),
+      h('button', { type: 'button', class: 'synctip-x', title: '稍后再提醒', 'aria-label': '稍后再提醒', onclick: snooze }, icon('x', 'xs')));
+  }
+  return { mark, merged, pending, view };
+})();
 /* ---------------- 备份：导出 / 导入 ---------------- */
 async function exportBackup() {
   if (!S.key) return;
@@ -5846,6 +5927,7 @@ async function exportBackup() {
       toast((how === 'shared' ? '备份已导出：' : '备份已下载：') + name, { duration: 5000 });
     }
     markDirty();
+    SyncNote.mark();
     if (!S.ui.sel) renderDetail();
   } catch (e) { S.vault.meta.lastExportAt = prevExportAt; toast('导出失败：' + e.message, { type: 'error', duration: 5000 }); }
 }
@@ -5913,6 +5995,7 @@ async function importVaultText(text) {
 function applyMerge(vault) {
   const before = JSON.stringify(S.vault);
   const st = mergeVault(S.vault, vault);
+  SyncNote.merged(vault);
   if (JSON.stringify(S.vault) !== before) markDirty();
   if (S.ui.sel && !findEntry(S.ui.sel)) S.ui.sel = null;
   renderAll();
@@ -6056,6 +6139,7 @@ async function applySyncPacket(packet, { quiet = false } = {}) {
   } catch (e) { toast(e.message, { type: 'error', duration: 6000 }); return null; }
   if (!res || S.key !== session || S.locking) return null;
   const st = applyMerge(res.payload.vault);
+  if (res.payload.partial) SyncNote.mark();
   const parts = [st.added && `新增 ${st.added} 条`, st.updated && `更新 ${st.updated} 条`, st.removed && `删除 ${st.removed} 条`].filter(Boolean);
   const summary = parts.length ? `已合并${res.payload.from}上的内容：${parts.join('，')}` : `${res.payload.from}上的内容这里都有，没有需要合并的`.trim();
   if (!quiet) toast(summary, { duration: 6000 });
@@ -6139,6 +6223,7 @@ async function importFromScanNew() {
   setLastStore(store.kind);
   Object.assign(S, { store, key: res.key, header, vault, ui: freshUI(), dirty: false, lastActivity: Date.now(), pendingStashClear: false, pendingStashStore: null, readOnly: false });
   S.revealed.clear();
+  SyncNote.mark();
   renderMain();
   toast(`已从${res.payload.from}导入 ${n} 个条目，以后用同一个主密码解锁`, { duration: 6000 });
 }
@@ -6299,6 +6384,7 @@ async function sendBack(got) {
     dots.replaceChildren(...(qs.length > 1 ? qs.map((_, k) => h('i', { class: k === i ? 'on' : '' })) : []));
     i = (i + 1) % qs.length;
   };
+  const shownAt = Date.now();
   const { close } = openDialog({
     title: `最后一步：让${other}扫回去`, size: 'sm',
     body: [
@@ -6309,7 +6395,7 @@ async function sendBack(got) {
       h('div', { class: 'sync-qr flip' }, canvas, h('div', { class: 'frames' }, counter), dots),
       h('p', { class: 'hint' }, `屏幕亮一点更好扫。${other}没有摄像头的话，可以改用「同步」→「文件同步」。`)],
     footer: [h('button', { type: 'button', class: 'btn primary', onclick: () => close() }, '完成')],
-    onClose: () => clearInterval(timer),
+    onClose: () => { clearInterval(timer); if (Date.now() - shownAt >= 2500) SyncNote.mark(); },
   });
   paint();
   if (qs.length > 1) timer = setInterval(paint, 450);
@@ -6319,7 +6405,7 @@ async function sendBack(got) {
 function openSyncDialog(tab0) {
   if (!S.key || S.locking) return;
   const session = S.key, other = IS_TOUCH ? '电脑' : '手机';
-  let timer = 0, frames = null, ownSid = '', reader = null, received = null, curTab = '', renderSeq = 0;
+  let timer = 0, frames = null, ownSid = '', reader = null, received = null, curTab = '', renderSeq = 0, shownAt = 0;
   const skipped = new Set();  // 这次没合并成（取消了输入密码等）的同步包：同一窗口里不再反复读它
   const panel = h('div', { role: 'tabpanel' });
   const chips = {};
@@ -6365,6 +6451,7 @@ function openSyncDialog(tab0) {
           i = (i + 1) % qs.length;
         };
         paint();
+        shownAt = shownAt || Date.now();
         if (qs.length > 1) timer = setInterval(paint, 450);
         if (qs.length > 40) counter.textContent += '。内容较多，扫码要等一会儿，也可以改用「文件同步」';
       } catch (e) { counter.textContent = '生成二维码失败：' + e.message + '。可以改用「文件同步」。'; }
@@ -6411,7 +6498,7 @@ function openSyncDialog(tab0) {
     for (const [k, b] of Object.entries(chips)) { b.setAttribute('aria-pressed', String(k === id)); b.setAttribute('aria-selected', String(k === id)); }
     panel.replaceChildren(...(id === 'show' ? showPanel() : id === 'scan' ? scanPanel() : filePanel()).filter(Boolean));
   };
-  const { close } = openDialog({ title: '电脑和手机同步', body: [tabs, panel], onClose: () => { clearInterval(timer); stopReader(); curTab = ''; } });
+  const { close } = openDialog({ title: '电脑和手机同步', body: [tabs, panel], onClose: () => { clearInterval(timer); stopReader(); curTab = ''; if (shownAt && Date.now() - shownAt >= 3000) SyncNote.mark(); } });
   setTab(tab0 || (IS_TOUCH ? 'scan' : 'show'));
 }
 // 主界面的「扫一扫」：同步二维码就合并，两步验证二维码就新建条目
