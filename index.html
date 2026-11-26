@@ -803,41 +803,13 @@ body.privacy #app,body.privacy dialog{filter:blur(18px);opacity:.2}
   *,*::before,*::after{animation-duration:.01s !important;animation-delay:0s !important;transition-duration:.01s !important;transition-delay:0s !important}
 }
 
-/* —— 背景图（插画 / 自己的图片）：两块静止的模糊画布，锁屏淡、解锁后更朦胧；只做淡入淡出 —— */
-#wall{position:absolute;inset:0;opacity:0;transition:opacity .7s ease;display:none}
-html[data-bg]:not([data-bg="aurora"]) #wall{display:block}
-html[data-bg]:not([data-bg="aurora"]) #aurora canvas.aur{display:none}
-#wall.ready{opacity:1}
-/* 解锁：朦胧的那块淡入并轻轻拉近；淡完以后把锁屏那块藏起来，静止时只合成一块画布 */
-#wall .wm{transition:opacity 1s ease,transform 1.6s var(--soft),visibility 0s}
-#wall .wl{visibility:hidden;transition:visibility 0s 1.05s}
-html.gate-on #wall .wm{opacity:0;transform:scale(1.06);visibility:hidden;transition:opacity 1s ease,transform 1.6s var(--soft),visibility 0s 1.05s}
-html.gate-on #wall .wl{visibility:visible;transition:none}
-html[data-bg]:not([data-bg="aurora"]){--veil:rgba(246,247,252,.2);--panel:rgba(255,255,255,.62);--grain:.03}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"])[data-bg]:not([data-bg="aurora"]){--veil:rgba(4,6,14,.24);--panel:rgba(14,16,28,.42)}}
-:root[data-theme="dark"][data-bg]:not([data-bg="aurora"]){--veil:rgba(4,6,14,.24);--panel:rgba(14,16,28,.42)}
-/* 背景选择 */
-.bg-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 12px}
-.bg-tile{position:relative}
-.bg-pick{display:block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer;text-align:center;-webkit-tap-highlight-color:transparent}
-.bg-thumb{display:grid;place-items:center;width:100%;aspect-ratio:9/16;border-radius:16px;overflow:hidden;background:var(--fill);box-shadow:0 0 0 1px var(--sep);transition:transform .25s var(--spring),box-shadow .2s ease}
-.bg-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.bg-thumb.aur{background:radial-gradient(70% 45% at 15% 15%,var(--A1),transparent 70%),radial-gradient(70% 45% at 90% 35%,var(--A2),transparent 70%),radial-gradient(70% 45% at 20% 85%,var(--A3),transparent 70%),radial-gradient(70% 45% at 90% 95%,var(--A4),transparent 70%),var(--base)}
-.bg-thumb.bg-addt{background:transparent;box-shadow:inset 0 0 0 1.5px var(--sep);color:var(--accent)}
-.bg-thumb.bg-addt svg{width:28px;height:28px}
-.bg-pick[aria-checked="true"] .bg-thumb{box-shadow:0 0 0 3px var(--accent),0 10px 24px -10px rgba(0,0,0,.35)}
-.bg-pick:active .bg-thumb{transform:scale(.95)}
-.bg-pick .l{display:block;margin-top:7px;font-size:12.5px;color:var(--ink2)}
-.bg-pick[aria-checked="true"] .l{color:var(--accent);font-weight:600}
-.bg-del{position:absolute;top:-7px;right:-7px;width:26px;height:26px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(20,22,30,.72);color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)}
-.bg-del svg{width:12px;height:12px}
-.seg{display:inline-flex;padding:2px;border-radius:10px;background:var(--fill);flex:none}
-.seg-b{border:0;background:none;color:var(--ink);font:inherit;font-size:14px;padding:6px 14px;border-radius:8px;cursor:pointer}
-.seg-b[aria-checked="true"]{background:var(--sheet);box-shadow:0 1px 4px rgba(0,0,0,.15);font-weight:600}
+/* —— iPhone：状态栏和背景之间的过渡带（颜色由 TopBar 按背景最上沿设置，状态栏也是同一个颜色）—— */
+#aurora .topfade{display:none;position:absolute;left:0;right:0;top:0;height:120px}
+html.ios-bar #aurora .topfade{display:block}
 </style>
 </head>
 <body>
-<div id="aurora" aria-hidden="true"><canvas class="aur"></canvas><div id="wall"><canvas class="wl"></canvas><canvas class="wm"></canvas></div><div class="veil"></div><div class="grain"></div></div>
+<div id="aurora" aria-hidden="true"><canvas class="aur"></canvas><div class="veil"></div><div class="grain"></div><div class="topfade"></div></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
   <linearGradient id="emg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--eg1)"/><stop offset="1" style="stop-color:var(--eg2)"/></linearGradient>
   <linearGradient id="rg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c2ff5c"/><stop offset="1" stop-color="#26c962"/></linearGradient>
@@ -857,7 +829,7 @@ html[data-bg]:not([data-bg="aurora"]){--veil:rgba(246,247,252,.2);--panel:rgba(2
    · 不联网（见页头 CSP：connect-src 'none'），数据只写入你选择的本地文件
    ===================================================================== */
 const APP_NAME = '验证码保险箱';
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 const FORMAT = 'codevault';
 const KDF_ITER = 600000;
 const LS_VAULT = 'codevault.local.v1';
@@ -2295,7 +2267,7 @@ function applyTheme(theme = loadPrefs().theme) {
     m.setAttribute('content', theme === 'light' ? THEME_COLORS.light : theme === 'dark' ? THEME_COLORS.dark : forDark ? THEME_COLORS.dark : THEME_COLORS.light);
   }
   Aurora.refresh();
-  Wall.apply();
+  TopBar.update();
 }
 
 /* ---------------- 状态 ---------------- */
@@ -3372,7 +3344,6 @@ async function lock(reason) {
     S.revealed.clear(); hmacCache.clear(); totpCache.clear(); S.bio = null;
     closeDialogs();
     clearToasts();
-    Wall.next();
     renderLock({ reason, stashed, stashFailed });
   } finally {
     S.locking = false;
@@ -5194,7 +5165,6 @@ function openSettings() {
   };
   const group = (title, ic, ...rows) => [h('div', { class: 'set-title' }, icon(ic, 'sm'), title), h('div', { class: 'set-group' }, rows.filter(Boolean))];
   const isFile = S.store.kind === 'file';
-  const bgDesc = h('span', null, wallLabel());  // 「背景」这一行的说明：换主题、换背景后都跟着更新
   // 面容 ID 解锁：只在从网址打开、数据存在本机（手机）时出现
   const bioRow = () => {
     if (!IS_WEB || isFile) return null;
@@ -5223,9 +5193,7 @@ function openSettings() {
         row('密码提示', S.header.hint ? '当前提示：' + S.header.hint : '未设置', h('button', { type: 'button', class: 'btn sm', onclick: () => { close(); editHint(); } }, S.header.hint ? '修改' : '设置'))),
       ...group('显示', 'eye',
         row('首页卡片显示动态码', '收藏的账号卡片上直接显示正在变化的动态码；关掉后要点进账号才能看到', sw(st.cardCodes !== false, v => { st.cardCodes = v; markDirty(); renderList(); })),
-        row('外观', null, sel([['auto', '跟随系统'], ['light', '浅色'], ['dark', '深色']], prefs.theme, v => { savePrefs({ ...loadPrefs(), theme: v }); applyTheme(v); bgDesc.textContent = wallLabel(); })),
-        h('div', { class: 'set-row' }, h('div', { class: 't' }, h('b', null, '背景'), bgDesc),
-          h('button', { type: 'button', class: 'btn sm', onclick: () => openBackgroundPicker(() => { bgDesc.textContent = wallLabel(); }) }, icon('image', 'sm'), '更换'))),
+        row('外观', null, sel([['auto', '跟随系统'], ['light', '浅色'], ['dark', '深色']], prefs.theme, v => { savePrefs({ ...loadPrefs(), theme: v }); applyTheme(v); }))),
       ...group('数据', 'hardDrive',
         row('存储位置', isFile ? '加密文件：' + S.store.name + (S.readOnly ? '（只读打开，修改不会写回）' : '') : `${THIS_LOCAL}的本地存储` + (IS_TOUCH ? '' : '（清除浏览器数据会丢失）'),
           isFile ? h('button', { type: 'button', class: 'btn sm', onclick: async () => { if (await saveAsNewFile()) close(); } }, '另存到…') : null),
@@ -5803,433 +5771,58 @@ async function importCsv(textIn) {
   return true;
 }
 
-/* ---------------- 插画背景：原创的动漫风少女场景 ---------------- */
-// 全部用代码画（SVG），不含任何外部图片；按屏幕的宽高现画，竖屏、横屏都不会被裁掉人物。
-const Art = (() => {
-  const rng = seed => () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-  const f = n => Math.round(n * 10) / 10;
-  const g3 = n => Math.round(n * 1000) / 1000;
-
-  // 背影少女：局部坐标 400 × 1000，脚底在 y = 940。o 里是配色和服装。
-  function girl(o) {
-    const P = [];  // [路径, 填充, 是否参与轮廓光, 描边属性]
-    const add = (d, fill, rim = true, extra = '') => P.push([d, fill, rim, extra]);
-    const legs = o.dress ? o.skin : o.legs;
-    // 腿：膝盖略窄、小腿微鼓、脚踝收细
-    add('M160 556C158 620 159 670 160 700C156 730 155 760 157 785C159 830 163 860 163 885L162 912L182 913L182 885C182 860 188 830 189 785C190 760 189 730 187 700C188 670 190 620 191 560Z', legs);
-    add('M212 560C213 620 215 670 216 700C214 730 214 760 217 785C220 830 226 862 228 886L231 912L254 910L249 886C248 860 251 830 250 785C250 760 247 730 244 700C243 670 241 620 240 556Z', legs);
-    if (o.socks) {
-      add('M158 722C155 750 155 765 157 785C159 830 163 860 163 885L162 912L182 913L182 885C182 860 188 830 189 785C190 765 189 745 188 722Z', o.socks, false);
-      add('M215 722C214 750 214 765 217 785C220 830 226 862 228 886L231 912L254 910L249 886C248 860 251 830 250 785C250 765 248 745 246 722Z', o.socks, false);
-    }
-    add('M155 902C150 922 156 942 172 944C186 945 192 932 189 904Z', o.shoes);
-    add('M227 900C224 922 232 941 247 942C262 943 266 928 259 900Z', o.shoes);
-    // 手臂（裙装露手臂，制服是袖子）
-    const arm = o.dress ? o.skin : o.top;
-    add('M118 236C108 270 104 320 104 350C102 390 100 420 102 448L121 450C123 420 126 390 128 352C130 330 132 318 128 306Z', arm);
-    add('M284 236C294 270 298 320 298 350C300 390 302 420 300 448L281 450C279 420 276 390 274 352C272 330 270 318 274 306Z', arm);
-    add('M101 446C97 462 102 478 111 480C119 481 124 468 121 448Z', o.skin);
-    add('M281 448C278 468 283 481 291 480C300 478 305 462 301 446Z', o.skin);
-    if (o.dress) {
-      add('M176 200C150 204 128 214 118 236C112 262 118 290 128 306L274 306C284 290 290 262 284 236C274 214 252 204 226 200Z', o.skin);
-      add('M152 372L250 372C276 440 314 540 356 640C302 670 148 678 92 650C114 560 134 460 152 372Z', o.top);
-      add('M138 250C150 246 170 244 200 244C230 244 250 246 264 250C262 300 256 340 252 384L150 384C146 340 140 300 138 250Z', o.top);
-      add('M160 246L172 204M240 246L228 204', 'none', false, `stroke="${o.top}" stroke-width="5" stroke-linecap="round"`);  // 肩带（会被头发盖住大半）
-    } else {
-      add('M150 398L252 398C268 440 290 498 310 552C272 568 158 572 106 556C120 498 136 440 150 398Z', o.skirt);
-      add('M176 200C150 204 128 214 118 236C112 262 118 290 128 306L140 300C146 340 150 375 150 402L252 402C252 375 256 340 262 300L274 306C284 290 290 262 284 236C274 214 252 204 226 200Z', o.top);
-      if (o.collar) {  // 水手服背后的方领（两道白线）
-        add('M146 210L256 210L260 334L142 334Z', o.collar, false);
-        add('M118 238C128 222 140 213 150 211L148 262Z', o.collar, false);
-        add('M284 238C274 222 262 213 252 211L254 262Z', o.collar, false);
-        add('M152 218L152 326L250 326L250 218M159 218L159 319L243 319L243 218', 'none', false, `stroke="${o.collarLine}" stroke-width="3"`);
-      }
-    }
-    const HAIR = {
-      long: ['M140 108C141 60 172 36 202 36C234 36 262 60 264 106C268 158 282 214 318 288C342 336 370 382 394 430C352 426 320 448 292 470C264 492 230 512 196 506C170 482 150 452 140 420C128 380 125 320 127 260C129 210 136 158 140 108Z',
-        'M300 300C330 320 370 340 420 352C380 350 342 344 300 312Z', 'M320 360C350 384 384 404 428 420C388 416 352 402 318 372Z', 'M270 420C300 448 336 470 380 486C340 482 300 466 268 432Z'],
-      mid: ['M140 108C141 60 172 36 202 36C234 36 262 60 264 106C267 150 276 196 296 246C310 282 330 320 350 352C318 350 292 362 268 376C244 390 214 398 188 392C166 376 148 352 140 324C130 288 127 240 128 200C130 166 136 134 140 108Z',
-        'M286 250C312 274 344 296 384 310C350 306 316 294 284 266Z'],
-      // 高马尾：露出后背和水手领，马尾被风吹向右边
-      pony: ['M140 108C141 60 172 36 202 36C234 36 262 60 264 106C266 142 262 172 252 196C238 208 222 214 202 214C182 214 164 208 150 196C141 172 138 142 140 108Z',
-        'M198 62C236 52 266 86 280 142C292 196 314 250 350 296C364 314 380 330 400 340C364 348 328 334 304 308C278 280 260 238 250 196C242 160 232 122 214 96C208 86 202 76 198 62Z',
-        'M262 196C282 246 312 286 356 312C322 316 290 294 268 254Z', 'M142 136C137 172 141 204 153 226L160 214C152 190 150 162 150 138Z', 'M262 136C267 172 263 204 251 226L244 214C252 190 254 162 254 138Z'],
-    };
-    const [hairD, ...strands] = HAIR[o.hairLen || 'long'];
-    add(hairD, o.hair);
-    for (const d of strands) add(d, o.hair);
-    if (o.tie) {  // 扎马尾的小蝴蝶结
-      add('M206 66C198 55 185 53 183 61C181 69 194 72 206 68Z', o.tie, false);
-      add('M206 66C214 55 227 53 229 61C231 69 218 72 206 68Z', o.tie, false);
-      add('M201.5 66.5A4.5 4.5 0 1 0 210.5 66.5A4.5 4.5 0 1 0 201.5 66.5Z', o.tieDark || o.tie, false);
-    }
-    // 帽子 / 发带
-    const extra = [];
-    if (o.hat) {
-      extra.push(['M250 78C290 86 330 76 372 94C340 100 300 98 252 90Z', o.hatBand], ['M252 84C296 104 330 112 366 138C330 134 296 120 250 92Z', o.hatBand]);
-      extra.push(['M74 84A128 30 0 1 0 330 84A128 30 0 1 0 74 84Z', o.hat], ['M150 84C150 46 172 26 202 26C232 26 254 46 254 84Z', o.hat], ['M151 72C170 78 234 78 253 72L254 84C234 90 170 90 150 84Z', o.hatBand]);
-    }
-    if (o.ribbon) {
-      extra.push(['M195 158C190 200 180 240 170 268L184 264C194 236 200 200 202 160Z', o.ribbon], ['M205 158C214 198 228 236 244 260L256 252C240 230 224 196 210 158Z', o.ribbon]);
-      extra.push(['M200 150C176 122 140 118 136 140C132 162 168 172 200 156Z', o.ribbon], ['M200 150C224 122 260 118 264 140C268 162 232 172 200 156Z', o.ribbon], ['M189 152A11 10 0 1 0 211 152A11 10 0 1 0 189 152Z', o.ribbonDark]);
-    }
-    for (const [d, c] of extra) add(d, c);
-    const rimPaths = P.filter(p => p[2]).map(p => `<path d="${p[0]}"/>`).join('');
-    const rim = o.rimStroke
-      ? `<g fill="none" stroke="${o.rim}" stroke-linejoin="round" opacity="${o.rimOpacity || .9}"><g stroke-width="${o.rimStroke * 3}" opacity=".35">${rimPaths}</g><g stroke-width="${o.rimStroke}">${rimPaths}</g></g>`
-      : `<g fill="${o.rim}" opacity="${o.rimOpacity || .9}" transform="translate(${o.rimDx || 0} ${o.rimDy || 0})">${rimPaths}</g>`;
-    let s = `<ellipse cx="205" cy="940" rx="96" ry="11" fill="#000" opacity="${o.shadow || .25}"/>` + rim;
-    for (const [d, c, , x] of P) s += `<path d="${d}" fill="${c}" ${x}/>`;
-    // 细节：百褶、裙摆褶皱、发丝高光、天使环
-    if (!o.dress) s += `<g fill="none" stroke="${o.skirtDark}" stroke-width="3" opacity=".8"><path d="M165 402L140 560M185 402L175 566M205 402L210 566M225 402L248 562M243 402L285 556"/></g>`;
-    else s += `<g fill="none" stroke="${o.topDark}" stroke-width="3" opacity=".7"><path d="M170 390C160 480 140 580 120 650M200 390C204 490 210 590 214 668M230 390C252 480 290 570 320 650"/></g>`;
-    const streaks = {
-      long: '<path d="M214 120C232 200 262 280 316 360" stroke-width="5" opacity=".55"/><path d="M180 130C178 220 176 300 186 400" stroke-width="4" opacity=".35"/><path d="M240 112C252 160 270 210 296 260" stroke-width="3" opacity=".45"/>',
-      mid: '<path d="M214 120C230 190 250 250 290 310" stroke-width="5" opacity=".55"/><path d="M178 128C176 200 176 270 186 340" stroke-width="4" opacity=".35"/>',
-      pony: '<path d="M218 96C236 140 250 200 270 250C284 284 304 308 330 324" stroke-width="5" opacity=".55"/><path d="M236 92C252 128 262 170 272 206" stroke-width="3" opacity=".45"/><path d="M168 120C164 150 166 180 174 204" stroke-width="3" opacity=".35"/>',
-    };
-    s += `<g fill="none" stroke="${o.hairHi}" stroke-linecap="round">${streaks[o.hairLen || 'long']}</g>`;
-    if (!o.hat) s += `<path d="M152 92C176 76 228 76 252 92C228 86 176 86 152 92Z" fill="${o.hairHi}" opacity=".9"/>`;
-    if (o.ribbon) s += `<path d="M200 150C182 132 156 128 150 140C160 138 182 142 198 154Z" fill="${o.ribbonDark}" opacity=".6"/><path d="M200 150C218 132 244 128 250 140C240 138 218 142 202 154Z" fill="${o.ribbonDark}" opacity=".6"/>`;
-    if (o.hat) s += `<path d="M168 40C182 32 214 30 234 40" fill="none" stroke="#fff3d2" stroke-width="4" opacity=".6" stroke-linecap="round"/>`;
-    return s;
+/* ---------------- iPhone 状态栏：颜色跟着极光最上沿走 ---------------- */
+// 主屏幕 App 的状态栏是按 theme-color 上色的（用户截图实测正是 #03040a），背景却是会动的极光，两者之间就有一条硬边。
+// 这里每半秒取一次极光最上沿的颜色（解锁后算上半透明遮罩；有弹窗时再算上弹窗后面的暗幕），设成 theme-color；
+// 页面最上方再放一条同色、往下渐渐透明的过渡带，状态栏看起来就和极光连成一片。
+// 只改这条过渡带自己的样式（不动根元素的变量，那样会让整页重算样式）；极光画布很小，读一下几乎不花时间。
+const TopBar = (() => {
+  let on = false, last = null;
+  const nums = s => (String(s).match(/[\d.]+/g) || []).map(Number);
+  function sample() {
+    const root = document.documentElement, gate = root.classList.contains('gate-on');
+    const cv = $('#aurora canvas.aur');
+    if (!cv || !cv.width) return null;
+    let c;
+    try {
+      const d = cv.getContext('2d').getImageData(0, 0, cv.width, Math.min(3, cv.height)).data;
+      c = [0, 0, 0];
+      for (let i = 0; i < d.length; i += 4) { c[0] += d[i]; c[1] += d[i + 1]; c[2] += d[i + 2]; }
+      c = c.map(x => x / (d.length / 4));
+    } catch { return null; }
+    const cs = getComputedStyle(root);
+    const over = (col, rgba) => { const v = nums(rgba); return v.length >= 4 ? col.map((x, k) => x * (1 - v[3]) + v[k] * v[3]) : col; };
+    const round = col => col.map(x => Math.round(Math.max(0, Math.min(255, x))));
+    if (!gate) c = over(c, cs.getPropertyValue('--veil'));  // 锁屏时遮罩是隐藏的，极光完全露出来
+    // 过渡带本身也在弹窗暗幕下面，所以它只用背景色；状态栏不在页面里，要自己把暗幕（叠几层算几层）算进去
+    let bar = c;
+    for (let i = $$('dialog[open]').length; i > 0; i--) bar = over(bar, cs.getPropertyValue('--backdrop'));
+    return { fade: round(c), bar: round(bar) };
   }
-  const place = (x, feetY, H) => { const k = H / 920; return `translate(${f(x - 205 * k)} ${f(feetY - 940 * k)}) scale(${g3(k)})`; };
-  const sparkle = (x, y, L, c, o) => `<path d="M${f(x)} ${f(y - L)}Q${f(x)} ${f(y)} ${f(x + L)} ${f(y)}Q${f(x)} ${f(y)} ${f(x)} ${f(y + L)}Q${f(x)} ${f(y)} ${f(x - L)} ${f(y)}Q${f(x)} ${f(y)} ${f(x)} ${f(y - L)}Z" fill="${c}" opacity="${g3(o)}"/>`;
-  // 樱花瓣：细长的一片，根部尖、外缘宽，外缘中间一个小 V 口
-  const petal = (x, y, k, rot, c, o) => `<path transform="translate(${f(x)} ${f(y)}) rotate(${Math.round(rot)}) scale(${g3(k)})" d="M0 8C-2.6 5.4-4.8 1.4-4.6-2.4C-4.4-5.6-2.6-7.4-1.2-7L0-5.6 1.2-7C2.6-7.4 4.4-5.6 4.6-2.4C4.8 1.4 2.6 5.4 0 8Z" fill="${c}" opacity="${g3(o)}"/>`;
-  const flower = (x, y, k, rot, c, mid) => {
-    let s = `<g transform="translate(${f(x)} ${f(y)}) rotate(${Math.round(rot)}) scale(${g3(k)})">`;
-    for (let i = 0; i < 5; i++) s += `<ellipse cx="0" cy="-5.2" rx="3.6" ry="5" transform="rotate(${i * 72})" fill="${c}"/>`;
-    return s + `<circle r="2.2" fill="${mid}"/></g>`;
+  function tick() {
+    if (!on || document.hidden) return;
+    const s = sample();
+    if (!s) return;
+    const all = [...s.fade, ...s.bar];
+    if (last && all.every((x, i) => Math.abs(x - last[i]) < 2)) return;
+    last = all;
+    const hex = '#' + s.bar.map(x => x.toString(16).padStart(2, '0')).join(''), rgb = s.fade.join(',');
+    for (const m of $$('meta[name="theme-color"]')) m.setAttribute('content', hex);
+    const f = $('#aurora .topfade');
+    if (f) f.style.background = `linear-gradient(to bottom,rgb(${rgb}) 0%,rgba(${rgb},.62) 30%,rgba(${rgb},.22) 62%,rgba(${rgb},0) 100%)`;
+  }
+  return {
+    start() {
+      if (!IS_IOS || on) return;
+      on = true;
+      document.documentElement.classList.add('ios-bar');
+      tick();
+      setInterval(tick, 500);
+      document.addEventListener('visibilitychange', tick);
+    },
+    update() { last = null; tick(); },
   };
-
-  const scenes = {
-    night: {
-      name: '星夜', dark: true, palette: ['#7d8cff', '#c07bff', '#ff8fc8', '#5fd4ff'],
-      draw(w, h) {
-        const r = rng(11), m = Math.min(w, h), por = h > w;
-        const hill = x => h * (0.86 - 0.03 * Math.sin((x / w) * Math.PI * 1.3 + 0.5) - 0.015 * Math.sin((x / w) * Math.PI * 3.3 + 1));
-        const gx = w * (por ? 0.62 : 0.72), gy = hill(gx) + 4, gh = h * (por ? 0.5 : 0.62);
-        let s = `<defs><linearGradient id="a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050920"/><stop offset=".42" stop-color="#121b4a"/><stop offset=".7" stop-color="#352a6b"/><stop offset="1" stop-color="#8b5394"/></linearGradient>
-<radialGradient id="b"><stop offset="0" stop-color="#fff9ea"/><stop offset=".22" stop-color="#fff1cf" stop-opacity=".55"/><stop offset="1" stop-color="#ffe9c4" stop-opacity="0"/></radialGradient>
-<radialGradient id="c"><stop offset="0" stop-color="#c8d5ff" stop-opacity=".3"/><stop offset="1" stop-color="#c8d5ff" stop-opacity="0"/></radialGradient>
-<radialGradient id="d"><stop offset="0" stop-color="#ff9fd0" stop-opacity=".6"/><stop offset="1" stop-color="#ff9fd0" stop-opacity="0"/></radialGradient>
-<radialGradient id="e"><stop offset="0" stop-color="#f2feff"/><stop offset=".25" stop-color="#9ff3ff" stop-opacity=".7"/><stop offset="1" stop-color="#9ff3ff" stop-opacity="0"/></radialGradient>
-<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#161d45"/><stop offset="1" stop-color="#070a1d"/></linearGradient>
-<linearGradient id="h" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
-<rect width="${w}" height="${h}" fill="url(#a)"/>
-<ellipse cx="${f(w * 0.28)}" cy="${f(h * 0.86)}" rx="${f(w * 0.9)}" ry="${f(h * 0.2)}" fill="url(#d)"/>`;
-        // 银河：斜着的一条光带 + 密集的小星星
-        const mx = w * 0.42, my = h * 0.3, ang = -0.5;
-        s += `<ellipse cx="${f(mx)}" cy="${f(my)}" rx="${f(Math.max(w, h) * 0.8)}" ry="${f(m * 0.17)}" transform="rotate(${f(ang * 57.3)} ${f(mx)} ${f(my)})" fill="url(#c)"/>`;
-        const n1 = Math.round(w * h / 1400);
-        for (let i = 0; i < n1; i++) {
-          const t = (r() * 2 - 1) * Math.max(w, h) * 0.8, d = (r() + r() + r() - 1.5) * m * 0.12;
-          const x = mx + t * Math.cos(ang) - d * Math.sin(ang), y = my + t * Math.sin(ang) + d * Math.cos(ang);
-          if (x < 0 || x > w || y < 0 || y > h * 0.8) continue;
-          s += `<circle cx="${f(x)}" cy="${f(y)}" r="${f(0.35 + r() * 0.7)}" fill="#e6ecff" opacity="${g3(0.25 + r() * 0.55)}"/>`;
-        }
-        const n2 = Math.round(w * h / 2600);
-        for (let i = 0; i < n2; i++) s += `<circle cx="${f(r() * w)}" cy="${f(r() * h * 0.78)}" r="${f(0.4 + r() ** 3 * 1.8)}" fill="#fff" opacity="${g3(0.35 + r() * 0.65)}"/>`;
-        for (let i = 0; i < 9; i++) { const x = r() * w, y = r() * h * 0.6, L = 5 + r() * 9; s += `<circle cx="${f(x)}" cy="${f(y)}" r="${f(L * 1.6)}" fill="url(#e)" opacity=".35"/>` + sparkle(x, y, L, '#fff', 0.9); }
-        // 月亮（右上）和流星
-        const moX = w * (por ? 0.78 : 0.82), moY = h * (por ? 0.14 : 0.2), moR = m * 0.075;
-        // 弯月：亮的一边朝右，暗的部分隐约可见
-        s += `<circle cx="${f(moX)}" cy="${f(moY)}" r="${f(moR * 5)}" fill="url(#b)"/><circle cx="${f(moX)}" cy="${f(moY)}" r="${f(moR)}" fill="#fff6e2" opacity=".12"/><path d="M${f(moX)} ${f(moY - moR)}A${f(moR)} ${f(moR)} 0 1 1 ${f(moX)} ${f(moY + moR)}A${f(moR * 0.5)} ${f(moR)} 0 0 0 ${f(moX)} ${f(moY - moR)}Z" fill="#fff6e2"/>`;
-        const ssx = w * 0.18, ssy = h * 0.12, ssl = m * 0.35;
-        s += `<path d="M${f(ssx)} ${f(ssy)}L${f(ssx + ssl)} ${f(ssy + ssl * 0.32)}" stroke="url(#h)" stroke-width="2" stroke-linecap="round"/>`;
-        // 远处城市灯火（被山挡住一部分）
-        for (let i = 0; i < Math.round(w / 9); i++) {
-          const x = r() * w, y = hill(x) - r() * h * 0.025;
-          s += `<circle cx="${f(x)}" cy="${f(y)}" r="${f(0.8 + r() * 1.8)}" fill="${['#ffd27a', '#ffb3d1', '#ffe8b0', '#9fd8ff'][i % 4]}" opacity="${g3(0.45 + r() * 0.5)}"/>`;
-        }
-        // 山坡和草
-        let hp = `M0 ${f(hill(0))}`;
-        for (let x = 0; x <= w; x += w / 40) hp += `L${f(x)} ${f(hill(x))}`;
-        s += `<path d="${hp}L${w} ${h}L0 ${h}Z" fill="url(#g)"/><path d="${hp}" fill="none" stroke="#3b4a99" stroke-width="1.5" opacity=".7"/>`;
-        let grass = '';
-        for (let i = 0; i < Math.round(w / 6); i++) { const x = r() * w, y = hill(x) + 1, L = 4 + r() * 9; grass += `M${f(x)} ${f(y)}q${f(1 + r() * 3)} ${f(-L * 0.6)} ${f(2 + r() * 4)} ${f(-L)}`; }
-        s += `<path d="${grass}" fill="none" stroke="#2a3878" stroke-width="1.4" stroke-linecap="round" opacity=".9"/>`;
-        // 少女
-        s += `<g transform="${place(gx, gy, gh)}">${girl({ hairLen: 'pony', tie: '#e0456a', tieDark: '#b32f50', hair: '#17203f', hairHi: '#4a63b0', rim: '#a9c3ff', rimDx: 4, rimDy: -2, top: '#c3cbe6', legs: '#151a33', skin: '#e3c3bb', shoes: '#241a1c', skirt: '#1d2752', skirtDark: '#121a3a', collar: '#1d2752', collarLine: '#e3e8ff', shadow: .35 })}</g>`;
-        // 萤火：小小的光点，避开人物的头
-        const hx = gx, hy = gy - gh * 0.91;
-        for (let i = 0, n = 0; i < 60 && n < 14; i++) {
-          const a = r() * Math.PI * 2, d = gh * (0.25 + r() * 0.6), x = gx + Math.cos(a) * d * 0.9, y = gy - gh * 0.45 + Math.sin(a) * d * 0.5, R = m * (0.003 + r() * 0.006);
-          if (Math.hypot(x - hx, (y - hy) * 0.8) < gh * 0.16) continue;
-          n++;
-          s += `<circle cx="${f(x)}" cy="${f(y)}" r="${f(R * 5)}" fill="url(#e)" opacity="${g3(0.45 + r() * 0.45)}"/><circle cx="${f(x)}" cy="${f(y)}" r="${f(R * 0.7)}" fill="#f4ffff"/>`;
-        }
-        return s;
-      },
-    },
-    sakura: {
-      name: '樱花', dark: false, palette: ['#ff8fb3', '#ffb86b', '#8fc9ff', '#c9a4ff'],
-      draw(w, h) {
-        const r = rng(23), m = Math.min(w, h), por = h > w;
-        const gx = w * (por ? 0.55 : 0.64), gy = h * 0.95, gh = h * (por ? 0.52 : 0.64);
-        let s = `<defs><linearGradient id="a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8ccaff"/><stop offset=".5" stop-color="#dcefff"/><stop offset=".82" stop-color="#fff1f5"/><stop offset="1" stop-color="#ffe4ec"/></linearGradient>
-<radialGradient id="b"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-<radialGradient id="c"><stop offset="0" stop-color="#ffc4d6" stop-opacity=".85"/><stop offset="1" stop-color="#ffc4d6" stop-opacity="0"/></radialGradient>
-<linearGradient id="d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6e6dc"/><stop offset="1" stop-color="#ecd3c8"/></linearGradient>
-<radialGradient id="f"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".55" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
-<rect width="${w}" height="${h}" fill="url(#a)"/>
-<circle cx="${f(w * 0.18)}" cy="${f(h * 0.08)}" r="${f(m * 0.5)}" fill="url(#b)"/>`;
-        // 云：一团团柔和的白
-        for (let i = 0; i < 5; i++) {
-          const cx = r() * w, cy = h * (0.15 + r() * 0.3), k = m * (0.08 + r() * 0.08);
-          for (let j = 0; j < 6; j++) s += `<circle cx="${f(cx + (j - 2.5) * k * 0.7)}" cy="${f(cy + (r() - 0.5) * k * 0.5)}" r="${f(k * (0.8 + r() * 0.6))}" fill="url(#f)"/>`;
-        }
-        // 远处的樱花树团
-        for (let i = 0; i < 14; i++) { const x = r() * w, y = h * (0.7 + r() * 0.08), R = m * (0.1 + r() * 0.12); s += `<circle cx="${f(x)}" cy="${f(y)}" r="${f(R)}" fill="url(#c)"/>`; }
-        // 地面
-        s += `<path d="M0 ${f(h * 0.84)}C${f(w * 0.3)} ${f(h * 0.82)} ${f(w * 0.7)} ${f(h * 0.85)} ${w} ${f(h * 0.83)}L${w} ${h}L0 ${h}Z" fill="url(#d)"/>`;
-        for (let i = 0; i < Math.round(w / 5); i++) s += petal(r() * w, h * (0.85 + r() * 0.15), 0.6 + r() * 0.8, r() * 360, ['#ffc2d4', '#ffd6e2', '#ffadc6'][i % 3], 0.8);
-        // 枝条 + 花团（左上、右上）
-        const branch = (x0, y0, pts, wd) => { let d = `M${f(x0)} ${f(y0)}`; for (const [x1, y1, x2, y2, x, y] of pts) d += `C${f(x1)} ${f(y1)} ${f(x2)} ${f(y2)} ${f(x)} ${f(y)}`; return `<path d="${d}" fill="none" stroke="#5a3a3e" stroke-width="${f(wd)}" stroke-linecap="round"/>`; };
-        const cluster = (cx, cy, R, n) => {
-          let c = `<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(R * 1.25)}" fill="url(#c)"/>`;
-          for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, d = R * Math.sqrt(r()); c += flower(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.8, (0.7 + r() * 0.9) * m / 420, r() * 72, ['#ffd0dd', '#ffbcd0', '#ffe4ec', '#ffa9c2'][i % 4], '#ff7aa2'); }
-          return c;
-        };
-        const L = [w * 0.0, h * 0.02];
-        s += branch(L[0] - 10, L[1], [[w * 0.12, h * 0.05, w * 0.2, h * 0.1, w * 0.34, h * 0.12], [w * 0.42, h * 0.13, w * 0.5, h * 0.11, w * 0.58, h * 0.16]], m * 0.03);
-        s += branch(w * 0.2, h * 0.1, [[w * 0.22, h * 0.16, w * 0.18, h * 0.22, w * 0.24, h * 0.27]], m * 0.016);
-        s += branch(w + 10, h * 0.2, [[w * 0.92, h * 0.21, w * 0.86, h * 0.26, w * 0.78, h * 0.27]], m * 0.022);
-        s += cluster(w * 0.08, h * 0.07, m * 0.16, 46) + cluster(w * 0.32, h * 0.12, m * 0.13, 36) + cluster(w * 0.55, h * 0.15, m * 0.1, 28) + cluster(w * 0.23, h * 0.25, m * 0.08, 20) + cluster(w * 0.86, h * 0.25, m * 0.1, 26);
-        // 少女
-        s += `<g transform="${place(gx, gy, gh)}">${girl({ hair: '#7a4a3c', hairHi: '#c48d70', hairLen: 'mid', rim: '#ffffff', rimDx: -3, rimDy: -2, rimOpacity: .7, top: '#ecd9c0', legs: '#f2d6c8', socks: '#f7f7fb', skin: '#f6dccf', shoes: '#5b3a2c', skirt: '#3a4778', skirtDark: '#2a3460', ribbon: '#ea4a71', ribbonDark: '#b92d52', shadow: .14 })}</g>`;
-        // 飘落的花瓣（近处的大一些）
-        for (let i = 0; i < Math.round(w * h / 11000); i++) { const near = r() ** 4; s += petal(r() * w, r() * h * 0.9, (0.9 + near * 2.2) * m / 420, r() * 360, ['#ffc2d4', '#ffb3c9', '#ffd9e4', '#ff9fbd'][i % 4], 0.7 + near * 0.3); }
-        return s;
-      },
-    },
-    summer: {
-      name: '夏日', dark: false, palette: ['#ff9a7a', '#ffc46b', '#8fb6ff', '#c08cff'],
-      draw(w, h) {
-        const r = rng(37), m = Math.min(w, h), por = h > w;
-        const hz = h * (por ? 0.62 : 0.6), sunX = w * (por ? 0.36 : 0.4), beach = h * 0.84;
-        const gx = w * (por ? 0.6 : 0.68), gy = h * 0.965, gh = h * (por ? 0.55 : 0.68);
-        let s = `<defs><linearGradient id="a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d5bb0"/><stop offset=".3" stop-color="#8a7bd2"/><stop offset=".55" stop-color="#ff9db0"/><stop offset=".78" stop-color="#ffc48c"/><stop offset="1" stop-color="#ffe6b0"/></linearGradient>
-<radialGradient id="b"><stop offset="0" stop-color="#fffbe8"/><stop offset=".12" stop-color="#fff0c4"/><stop offset=".35" stop-color="#ffd19a" stop-opacity=".55"/><stop offset="1" stop-color="#ffb38a" stop-opacity="0"/></radialGradient>
-<linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2a6b4"/><stop offset=".35" stop-color="#9a8ed8"/><stop offset="1" stop-color="#5a6fc4"/></linearGradient>
-<linearGradient id="d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6c7a8"/><stop offset="1" stop-color="#e9b08f"/></linearGradient>
-<linearGradient id="e" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffb08f"/><stop offset=".6" stop-color="#ff9ab4" stop-opacity=".9"/><stop offset="1" stop-color="#b48ad8" stop-opacity=".85"/></linearGradient></defs>
-<rect width="${w}" height="${hz + 1}" fill="url(#a)"/>`;
-        // 云：底部被夕阳照亮
-        for (let i = 0; i < 4; i++) {
-          const cx = w * (0.1 + i * 0.27 + r() * 0.08), cy = h * (0.18 + r() * 0.22), k = m * (0.09 + r() * 0.07);
-          let c = '';
-          for (let j = 0; j < 7; j++) c += `<circle cx="${f(cx + (j - 3) * k * 0.62)}" cy="${f(cy - Math.sin(j / 6 * Math.PI) * k * 0.55 + r() * k * 0.2)}" r="${f(k * (0.45 + Math.sin(j / 6 * Math.PI) * 0.4))}"/>`;
-          s += `<g fill="url(#e)" opacity=".9">${c}</g>`;
-        }
-        s += `<circle cx="${f(sunX)}" cy="${f(hz)}" r="${f(m * 0.55)}" fill="url(#b)"/><circle cx="${f(sunX)}" cy="${f(hz - m * 0.02)}" r="${f(m * 0.06)}" fill="#fffdf2"/>`;
-        // 海面与夕阳倒影
-        s += `<rect y="${f(hz)}" width="${w}" height="${f(beach - hz + 2)}" fill="url(#c)"/>`;
-        for (let i = 0; i < Math.round((beach - hz) / 2.4); i++) {
-          const y = hz + 2 + i * 2.4 + r() * 1.5, spread = m * (0.04 + (y - hz) / (beach - hz) * 0.25), x = sunX + (r() - 0.5) * spread * 2, len = 6 + r() * 26;
-          s += `<rect x="${f(x - len / 2)}" y="${f(y)}" width="${f(len)}" height="1.2" rx=".6" fill="#fff4d6" opacity="${g3(0.35 + r() * 0.6)}"/>`;
-        }
-        for (let i = 0; i < Math.round(w / 6); i++) { const y = hz + r() * (beach - hz); s += `<rect x="${f(r() * w)}" y="${f(y)}" width="${f(4 + r() * 14)}" height="1" fill="#ffe0e6" opacity="${g3(0.15 + r() * 0.3)}"/>`; }
-        // 沙滩和浪花
-        s += `<path d="M0 ${f(beach)}C${f(w * 0.3)} ${f(beach - h * 0.01)} ${f(w * 0.6)} ${f(beach + h * 0.012)} ${w} ${f(beach - h * 0.004)}L${w} ${h}L0 ${h}Z" fill="url(#d)"/>`;
-        s += `<path d="M0 ${f(beach + 3)}C${f(w * 0.3)} ${f(beach - h * 0.01 + 3)} ${f(w * 0.6)} ${f(beach + h * 0.012 + 3)} ${w} ${f(beach - h * 0.004 + 3)}" fill="none" stroke="#fff" stroke-width="2.5" opacity=".75"/>`;
-        // 海鸥
-        for (let i = 0; i < 4; i++) { const x = w * (0.12 + r() * 0.5), y = h * (0.12 + r() * 0.25), k = m * (0.012 + r() * 0.012); s += `<path d="M${f(x - k * 2)} ${f(y)}q${f(k)} ${f(-k * 1.2)} ${f(k * 2)} 0q${f(k)} ${f(-k * 1.2)} ${f(k * 2)} 0" fill="none" stroke="#4b3f6e" stroke-width="${f(Math.max(1.2, k * 0.35))}" stroke-linecap="round" opacity=".7"/>`; }
-        // 少女：逆光，整圈轮廓光
-        s += `<g transform="${place(gx, gy, gh)}">${girl({ dress: true, hat: '#efcf8f', hatBand: '#5aa2e8', hair: '#3b2a2c', hairHi: '#8a6458', rim: '#ffe2a8', rimStroke: 5, top: '#fbf6f0', topDark: '#e6d6cc', skin: '#efc6ae', shoes: '#c98d5e', shadow: .18 })}</g>`;
-        for (let i = 0; i < 18; i++) { const x = r() * w, y = hz + r() * (beach - hz); s += sparkle(x, y, 2 + r() * 5, '#fffaf0', 0.5 + r() * 0.5); }
-        return s;
-      },
-    },
-  };
-  const svg = (name, w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w)}" height="${Math.round(h)}" viewBox="0 0 ${Math.round(w)} ${Math.round(h)}">${scenes[name].draw(Math.round(w), Math.round(h))}</svg>`;
-  return { scenes, svg, names: Object.keys(scenes) };
 })();
-/* ---------------- 背景：极光 / 插画 / 自己的图片 ---------------- */
-// 只是这台设备上的外观设置：不进保险箱、不同步。自己的图片存在本机（IndexedDB），不加密，锁屏时也会显示。
-// 先按屏幕大小画好一张，再「一路缩小、再一级级放大」做出两档模糊：锁屏淡一点，解锁后更朦胧。
-// 结果是两块静止的小画布，切换时只做淡入淡出：不额外耗电，滑动、翻页也不受影响。
-const WALL_MAX = 12, WALL_EDGE = 1600;
-const WALL_BLUR = [['轻', 3], ['中', 4], ['重', 5]];
-const Wall = (() => {
-  let seq = 0, key = '', size = [0, 0], started = false;
-  const box = () => $('#wall');
-  // 没选过就是极光（1.6.1 起；1.6.0 时默认插画，用户试过后觉得极光好看）
-  function mode() { const b = loadPrefs().bg; return b === 'mine' || (b && Art.scenes[b]) ? b : 'aurora'; }
-  const scaleTo = (src, w, h) => {
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, w, h);
-    return c;
-  };
-  // 金字塔模糊：对半缩小 lv 次，再一级级放大回原图一半的大小（最后一倍交给 CSS 拉伸）
-  function pyramid(src, lv) {
-    const sizes = []; let w = src.width, h = src.height, cur = src;
-    for (let i = 0; i < lv; i++) { w = Math.max(2, Math.round(w / 2)); h = Math.max(2, Math.round(h / 2)); sizes.push([w, h]); cur = scaleTo(cur, w, h); }
-    for (let i = sizes.length - 2; i >= 0; i--) cur = scaleTo(cur, sizes[i][0], sizes[i][1]);
-    return cur;
-  }
-  const blit = (cv, src) => { cv.width = src.width; cv.height = src.height; cv.getContext('2d', { alpha: false }).drawImage(src, 0, 0); };
-  async function list() { try { const L = await idbGet('wall.list'); return Array.isArray(L) ? L : []; } catch { return []; } }
-  async function current() { const L = await list(), id = loadPrefs().bgPick; return L.find(x => x.id === id) || L[0] || null; }
-  async function source(m, W, H) {
-    if (m === 'mine') {
-      const it = await current();
-      const blob = it ? await idbGet('wall.img.' + it.id) : null;
-      return blob ? createImageBitmap(blob) : null;
-    }
-    const url = URL.createObjectURL(new Blob([Art.svg(m, W, H)], { type: 'image/svg+xml' }));
-    try { const img = new Image(); img.src = url; await img.decode(); return img; } finally { URL.revokeObjectURL(url); }
-  }
-  async function render(force) {
-    const b = box(), m = mode();
-    if (!b || m === 'aurora') return false;
-    const W = Math.max(16, innerWidth), H = Math.max(16, innerHeight), p = loadPrefs();
-    const lv = (WALL_BLUR[p.bgBlur] || WALL_BLUR[0])[1];
-    const k = [m, m === 'mine' ? (await current() || {}).id : '', lv, W, H].join('|');
-    if (!force && k === key && b.classList.contains('ready')) return true;
-    const my = ++seq;
-    let src = null;
-    try { src = await source(m, W, H); } catch (e) { console.warn('背景图读取失败', e); }
-    if (my !== seq) return false;
-    if (!src) return false;
-    const base = document.createElement('canvas'); base.width = W; base.height = H;
-    const bx = base.getContext('2d'); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = 'high';
-    const s = Math.max(W / src.width, H / src.height), dw = src.width * s, dh = src.height * s;
-    bx.drawImage(src, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    if (src.close) src.close();
-    blit(b.querySelector('.wl'), pyramid(base, 2));
-    blit(b.querySelector('.wm'), pyramid(base, lv));
-    key = k; size = [W, H];
-    b.classList.add('ready');
-    return true;
-  }
-  // 按当前设置切换：极光就让极光接着动；图片就停掉极光（省电），画好后淡入
-  async function apply() {
-    if (!started) return;
-    const m = mode(), root = document.documentElement;
-    if (m === 'aurora') { root.dataset.bg = 'aurora'; Aurora.pause(false); box()?.classList.remove('ready'); key = ''; return; }
-    root.dataset.bg = m;
-    Aurora.pause(true);
-    const ok = await render();
-    if (!ok && mode() === m) { root.dataset.bg = 'aurora'; Aurora.pause(false); }  // 图片没了或读不出来：先退回极光
-  }
-  // 每次锁定后换一张（只在「我的图片」里有两张以上、且打开了轮换时）
-  async function next(redraw = true) {
-    const p = loadPrefs();
-    if (mode() !== 'mine' || !p.bgShuffle) return;
-    const L = await list();
-    if (L.length < 2) return;
-    const i = L.findIndex(x => x.id === p.bgPick);
-    savePrefs({ ...loadPrefs(), bgPick: L[(i + 1) % L.length].id });
-    if (redraw) render();
-  }
-  async function add(files) {
-    const L = await list();
-    let added = 0, failed = 0, last = null;
-    for (const file of files) {
-      if (L.length >= WALL_MAX) break;
-      try {
-        const bmp = await createImageBitmap(file);
-        const k = Math.min(1, WALL_EDGE / Math.max(bmp.width, bmp.height));
-        const c = scaleTo(bmp, Math.max(1, Math.round(bmp.width * k)), Math.max(1, Math.round(bmp.height * k)));
-        if (bmp.close) bmp.close();
-        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
-        if (!blob) throw new Error('无法转换');
-        const id = Array.from(crypto.getRandomValues(new Uint8Array(6)), x => x.toString(16).padStart(2, '0')).join('');
-        await idbSet('wall.img.' + id, blob);
-        L.push({ id, w: c.width, h: c.height, at: Date.now() });
-        await idbSet('wall.list', L);
-        added++; last = id;
-      } catch (e) { console.warn('图片添加失败', e); failed++; }
-    }
-    return { added, failed, last, skipped: files.length - added - failed };
-  }
-  async function remove(id) {
-    const L = (await list()).filter(x => x.id !== id);
-    await idbSet('wall.list', L);
-    try { await idbDel('wall.img.' + id); } catch {}
-    const p = loadPrefs();
-    if (p.bgPick === id) savePrefs({ ...p, bgPick: L[0] ? L[0].id : null, bg: L.length ? p.bg : (p.bg === 'mine' ? 'aurora' : p.bg) });
-    return L;
-  }
-  let rt = 0;
-  addEventListener('resize', () => {
-    clearTimeout(rt);
-    rt = setTimeout(() => {
-      if (mode() === 'aurora') return;
-      const [w0, h0] = size;
-      if (Math.abs(innerWidth - w0) > 30 || Math.abs(innerHeight - h0) > 140) render(true);  // 手机工具栏收起这种小变化不用重画
-    }, 300);
-  });
-  return { mode, apply, next, add, remove, list, start: async () => { started = true; await next(false); await apply(); } };
-})();
-const WALL_NAMES = { aurora: '极光（会流动）', mine: '我的图片' };
-const wallLabel = () => { const m = Wall.mode(); return WALL_NAMES[m] || ('插画 · ' + Art.scenes[m].name); };
-
-// 设置里的「背景」：挑一个，马上在后面看到效果
-async function openBackgroundPicker(onChange) {
-  const urls = [];
-  const grid = h('div', { class: 'bg-grid', role: 'radiogroup', 'aria-label': '背景' });
-  const tips = h('p', { class: 'hint' });
-  const file = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
-  const choose = async (bg, id) => {
-    savePrefs({ ...loadPrefs(), bg, ...(id ? { bgPick: id } : {}) });
-    await Wall.apply();
-    fill(); onChange && onChange();
-  };
-  const thumb = (inner, extra = '') => h('span', { class: 'bg-thumb' + extra }, inner);
-  const artThumb = name => { const u = URL.createObjectURL(new Blob([Art.svg(name, 108, 192)], { type: 'image/svg+xml' })); urls.push(u); return h('img', { src: u, alt: '' }); };
-  const tile = (label, sel, th, onPick, del) => h('div', { class: 'bg-tile' },
-    h('button', { type: 'button', class: 'bg-pick', role: 'radio', 'aria-checked': String(sel), onclick: onPick }, th, h('span', { class: 'l' }, label)),
-    del ? h('button', { type: 'button', class: 'bg-del', title: '删除这张图片', 'aria-label': '删除这张图片', onclick: del }, icon('x', 'xs')) : null);
-  async function fill() {
-    urls.splice(0).forEach(u => URL.revokeObjectURL(u));
-    const m = Wall.mode(), L = await Wall.list(), pick = loadPrefs().bgPick;
-    const tiles = [tile('极光', m === 'aurora', thumb(null, ' aur'), () => choose('aurora'))];
-    for (const n of Art.names) tiles.push(tile(Art.scenes[n].name, m === n, thumb(artThumb(n)), () => choose(n)));
-    for (const [n, it] of L.entries()) {
-      const blob = await idbGet('wall.img.' + it.id).catch(() => null);
-      if (!blob) continue;
-      const u = URL.createObjectURL(blob); urls.push(u);
-      const sel = m === 'mine' && (pick === it.id || (!L.some(x => x.id === pick) && it === L[0]));
-      tiles.push(tile('图片 ' + (n + 1), sel, thumb(h('img', { src: u, alt: '' })), () => choose('mine', it.id), async () => {
-        if (!(await confirmDialog({ title: '删除这张图片？', message: '只是从背景里删掉这张图片，不影响保险箱里的内容。', ok: '删除', danger: true }))) return;
-        await Wall.remove(it.id); await Wall.apply(); fill(); onChange && onChange();
-      }));
-    }
-    if (L.length < WALL_MAX) tiles.push(h('div', { class: 'bg-tile' }, h('button', { type: 'button', class: 'bg-pick bg-add', onclick: () => file.click() }, thumb(icon('plus'), ' bg-addt'), h('span', { class: 'l' }, '添加图片'))));
-    grid.replaceChildren(...tiles);
-    tips.textContent = L.length
-      ? `自己的图片只保存在这台设备上（不加密、不会同步到别的设备），锁屏时也会显示。最多 ${WALL_MAX} 张。`
-      : '插画是程序自己画的原创图。也可以「添加图片」用你自己喜欢的壁纸：图片只保存在这台设备上，不加密、不会同步，锁屏时也会显示。';
-    shuffleRow.hidden = L.length < 2;
-  }
-  file.addEventListener('change', async () => {
-    const files = [...file.files]; file.value = '';
-    if (!files.length) return;
-    const r = await Wall.add(files);
-    if (r.failed) toast(r.added ? `${r.failed} 张图片打不开，已跳过` : '这张图片打不开（格式不支持），换一张试试', { type: 'error', duration: 4000 });
-    if (r.skipped > 0) toast(`最多 ${WALL_MAX} 张，多出来的没有加进来`, { type: 'error', duration: 4000 });
-    if (r.last) await choose('mine', r.last); else fill();
-  });
-  const blurSeg = h('div', { class: 'seg', role: 'radiogroup', 'aria-label': '模糊程度' });
-  const drawSeg = () => blurSeg.replaceChildren(...WALL_BLUR.map(([l], i) => h('button', { type: 'button', class: 'seg-b', role: 'radio', 'aria-checked': String((WALL_BLUR[loadPrefs().bgBlur] ? loadPrefs().bgBlur : 0) === i),
-    onclick: async () => { savePrefs({ ...loadPrefs(), bgBlur: i }); drawSeg(); await Wall.apply(); } }, l)));
-  drawSeg();
-  const sw = h('input', { type: 'checkbox', onchange: e => savePrefs({ ...loadPrefs(), bgShuffle: e.target.checked }) });
-  sw.checked = !!loadPrefs().bgShuffle;
-  const shuffleRow = h('div', { class: 'set-row' }, h('div', { class: 't' }, h('b', null, '每次锁定后换一张'), h('span', null, '在「我的图片」之间轮换')), h('label', { class: 'switch' }, sw, h('span', { class: 'slider' })));
-  openDialog({
-    title: '背景', size: 'sm',
-    body: [grid, file, h('div', { class: 'set-group', style: { marginTop: '16px' } },
-      h('div', { class: 'set-row' }, h('div', { class: 't' }, h('b', null, '模糊程度'), h('span', null, '图片放在账号后面时的朦胧程度；锁屏时会清楚一些')), blurSeg),
-      shuffleRow), tips],
-    onClose: () => urls.splice(0).forEach(u => URL.revokeObjectURL(u)),
-  });
-  await fill();
-}
 /* ---------------- 备份：导出 / 导入 ---------------- */
 async function exportBackup() {
   if (!S.key) return;
@@ -7014,7 +6607,7 @@ addEventListener('pagehide', () => { if (S.dirty) flushSave(); });
 async function init() {
   applyTheme();
   Aurora.start();
-  Wall.start();
+  TopBar.start();
   setupPWA();
   detectBio();  // 不等它：锁屏上的按钮只看本机有没有开启记录
   if (!window.crypto || !crypto.subtle) {
