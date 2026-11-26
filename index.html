@@ -429,7 +429,8 @@ html.gate-on #aurora .veil{opacity:0}
 .mini svg.i{width:18px;height:18px}
 .cap2{padding:26px 6px 12px;font:600 15px var(--font);color:var(--ink2)}
 .tiles{display:flex;flex-direction:column;gap:12px}
-.tile{border-radius:26px;transition:transform .6s var(--spring);will-change:transform}
+.tile{border-radius:26px;transition:transform .6s var(--spring)}
+.tile.anim{will-change:transform}
 .tile.down{transform:scale(.985);transition:transform .16s cubic-bezier(.2,.8,.2,1)}
 .th{display:flex;align-items:center;gap:14px;width:100%;min-height:80px;padding:15px 16px;cursor:pointer;border-radius:26px;text-align:left;color:inherit}
 .orb{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;color:#fff;flex:none;position:relative;background:linear-gradient(155deg,var(--t1),var(--t2));box-shadow:inset 0 1px 1px rgba(255,255,255,.6),inset 0 -2px 4px rgba(0,0,0,.15),0 9px 18px -8px var(--t2);z-index:2}
@@ -447,7 +448,7 @@ html.gate-on #aurora .veil{opacity:0}
 .tch{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--fill);color:var(--ink2);flex:none;transition:transform .7s var(--spring);position:relative;z-index:2}
 .tch svg.i{width:16px;height:16px;stroke-width:2.6}
 .tile.open:not(.closing) .tch{transform:rotate(180deg)}
-.tile::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;will-change:opacity;transition:opacity .18s ease;box-shadow:0 0 0 1px color-mix(in srgb,var(--t1) 34%,transparent),0 26px 56px -26px color-mix(in srgb,var(--t1) 70%,transparent)}
+.tile::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .18s ease;box-shadow:0 0 0 1px color-mix(in srgb,var(--t1) 34%,transparent),0 26px 56px -26px color-mix(in srgb,var(--t1) 70%,transparent)}
 .tile.open:not(.closing):not(.anim)::after{opacity:1;transition:opacity .45s ease}
 .fold{display:grid;grid-template-rows:0fr}
 .fold > div{overflow:hidden;min-height:0}
@@ -726,10 +727,10 @@ dialog.quick .fld-row{margin-bottom:10px}
   .lrow:hover{background:var(--fill)}
 }
 /* 打开 / 关闭账号时在两页之间飞行的卡片 */
-.flyer{position:fixed;z-index:5;overflow:hidden;pointer-events:none;will-change:left,top,width,height}
+.flyer{position:fixed;z-index:5;overflow:hidden;pointer-events:none;will-change:transform}
 .flyer > *{position:absolute;left:0;top:0;margin:0 !important}
 .flyer .fbg{inset:0;width:auto;height:auto}
-.flyer .fglass{inset:0;background:var(--glass);-webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%)}
+.flyer .fglass{inset:0;background:var(--panel)}
 
 /* ───── 窄屏（手机）：一次显示一页 ───── */
 .back-btn{display:none !important}
@@ -821,6 +822,9 @@ html.ios-bar #aurora .topfade{display:block}
 
 /* —— 1.6.4：按钮不参与 iOS 的双击缩放判定，连着快点也每一下都响应 —— */
 button,.th,[role="button"]{touch-action:manipulation}
+
+/* —— 1.6.5：打开 / 返回账号的那半秒里，玻璃按钮和搜索框不实时模糊背后（背后是本来就很柔和的极光，看不出区别；iPhone 上省下每帧重算模糊）—— */
+.shell.morphing .glass{-webkit-backdrop-filter:none;backdrop-filter:none}
 </style>
 </head>
 <body>
@@ -844,7 +848,7 @@ button,.th,[role="button"]{touch-action:manipulation}
    · 不联网（见页头 CSP：connect-src 'none'），数据只写入你选择的本地文件
    ===================================================================== */
 const APP_NAME = '验证码保险箱';
-const APP_VERSION = '1.6.4';
+const APP_VERSION = '1.6.5';
 const FORMAT = 'codevault';
 const KDF_ITER = 600000;
 const LS_VAULT = 'codevault.local.v1';
@@ -3473,7 +3477,7 @@ const Aurora = (() => {
     raf = 0;
     if (off || document.hidden || !cv) return;
     const mixing = now - t0 < MIX;
-    if (now - last >= FRAME || mixing) { last = now; draw(now); }
+    if (now - last >= (mixing ? 1000 / 30 : FRAME)) { last = now; draw(now); }
     if (!still || mixing) raf = requestAnimationFrame(loop);
   }
   const kick = () => { if (!off && !raf && cv && !document.hidden) raf = requestAnimationFrame(loop); };
@@ -3611,7 +3615,20 @@ document.addEventListener('pointerdown', ev => {
   const up = () => { target.classList.remove('down'); if (tl) tl.classList.remove('lit'); removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true); };
   addEventListener('pointerup', up, true);
   addEventListener('pointercancel', up, true);
+  const it = ev.target.closest('.entry-item[data-id], .wc[data-id]');
+  if (it) { const id = it.dataset.id; requestAnimationFrame(() => setTimeout(() => prerenderDetail(id), 0)); }
 }, true);
+// 手机上手指刚按到账号时：先在看不见的详情页里把内容建好、排好版（窄屏时详情页是隐藏的），松手打开时直接用，
+// 点下去到卡片开始飞的等待短很多。按下后没打开（比如是在滑动）也没关系：下次渲染详情页时会直接覆盖。
+function prerenderDetail(id) {
+  if (!S.vault || navBusy || S.ui.sel || !NARROW()) return;
+  const e = findEntry(id), pane = $('#detail');
+  if (!e || !pane) return;
+  const node = entryDetail(e);
+  pane.replaceChildren(node);
+  S.ui.pre = { id, node };
+  void pane.offsetHeight;  // 现在就把样式和排版算好
+}
 matchMedia('(max-width: 899px)').addEventListener('change', () => { if (S.vault && $('#main') && !navBusy) renderDetail(); });
 
 /* —— 安全检查：两步验证、密码强度、备用码余量 —— */
@@ -3916,8 +3933,11 @@ function renderDetail(opts = {}) {
   const e = S.ui.sel ? findEntry(S.ui.sel) : null;
   if (!e) S.ui.sel = null;
   const keep = opts.fresh ? 0 : pane.scrollTop;
-  const content = e ? entryDetail(e) : NARROW() ? null : overview();
-  pane.replaceChildren(...(content ? [content] : []));
+  const pre = S.ui.pre;
+  S.ui.pre = null;
+  let content;
+  if (pre && e && opts.fresh && pre.id === e.id && pane.firstChild === pre.node && pane.childNodes.length === 1) content = pre.node;  // 按下时已经建好、排好版
+  else { content = e ? entryDetail(e) : NARROW() ? null : overview(); pane.replaceChildren(...(content ? [content] : [])); }
   pane.scrollTop = keep;
   $('#main').classList.toggle('has-detail', !!e);
   renderDetailNav(e);
@@ -5831,7 +5851,7 @@ const TopBar = (() => {
     return { fade: round(c), bar: round(bar) };
   }
   function tick() {
-    if (!on || document.hidden) return;
+    if (!on || document.hidden || navBusy || $('.tile.anim')) return;
     const s = sample();
     if (!s) return;
     const all = [...s.fade, ...s.bar];
