@@ -857,7 +857,7 @@ html[data-bg]:not([data-bg="aurora"]){--veil:rgba(246,247,252,.2);--panel:rgba(2
    · 不联网（见页头 CSP：connect-src 'none'），数据只写入你选择的本地文件
    ===================================================================== */
 const APP_NAME = '验证码保险箱';
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const FORMAT = 'codevault';
 const KDF_ITER = 600000;
 const LS_VAULT = 'codevault.local.v1';
@@ -3392,13 +3392,26 @@ let lastRings = null;  // 安全检查圆环上次的位置：重绘时从这里
 // 背景极光的颜色：打开哪个账号，就慢慢变成那个账号的颜色
 function setPalette(e) { Aurora.palette(e ? brandOf(e.service) : null); }
 
-/* —— 背景极光 —— */
+/* —— 背景极光（光幕）—— */
 // 按屏幕 1/6 的分辨率画在一块小画布上再拉伸铺满：极光本来就是糊的，看不出区别；
 // 比四个铺满屏幕的巨大渐变图层省显存，手机上滑动、展开、翻页都更顺。
+// 1.6.1「光幕」：四团底光沿弯曲的路线漂、慢慢转、轻轻呼吸（横竖周期不同，永远不重复），光与光之间留出暗处；
+// 再加两条沿弧线摆动、微微闪烁的光带（上面青绿、下面紫粉）。光晕按高斯曲线淡出；深色时光相加，重叠处更亮更透；
+// 整体色相在 70 秒里来回轻轻漂移。
 const Aurora = (() => {
   let cv = null, ctx = null, raf = 0, last = 0, W = 0, H = 0, VM = 0, still = false, off = false;  // off：换成背景图时停画
   let pal = null, from = null, to = null, cur = null, t0 = -1e9;
-  const K = 6, FRAME = 1000 / 24, MIX = 1200;
+  const K = 6, FRAME = 1000 / 24, MIX = 1200, TAU = Math.PI * 2;
+  const STOPS = [[0, 1], [0.18, 0.93], [0.38, 0.68], [0.58, 0.35], [0.78, 0.11], [1, 0]];
+  // 色相旋转（RGB 空间里的标准矩阵）
+  const hue = ([r, g, b], deg) => {
+    const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    return [
+      r * (0.213 + c * 0.787 - s * 0.213) + g * (0.715 - c * 0.715 - s * 0.715) + b * (0.072 - c * 0.072 + s * 0.928),
+      r * (0.213 - c * 0.213 + s * 0.143) + g * (0.715 + c * 0.285 + s * 0.14) + b * (0.072 - c * 0.072 - s * 0.283),
+      r * (0.213 - c * 0.213 - s * 0.787) + g * (0.715 - c * 0.715 + s * 0.715) + b * (0.072 + c * 0.928 + s * 0.072),
+    ].map(v => Math.round(Math.max(0, Math.min(255, v))));
+  };
   const probe = document.createElement('canvas').getContext('2d');
   const rgb = c => {
     probe.fillStyle = '#000'; probe.fillStyle = String(c || '#000');
@@ -3411,39 +3424,64 @@ const Aurora = (() => {
   function target() {
     const dark = css('--mw') === '#000';
     const cols = [pal ? pal[0] : css('--A1'), pal ? pal[1] : css('--A2'), css('--A3'), css('--A4')].map(rgb).map(c => (dark ? c : c.map(v => (v + 255) / 2)));
-    return { cols, base: rgb(css('--base')), alpha: parseFloat(css('--aur')) || 1 };
+    return { cols, base: rgb(css('--base')), alpha: parseFloat(css('--aur')) || 1, dark };
   }
-  // 四团光（单位换算成画布像素）：中心 x、y，半径 rx、ry，来回漂的位移 dx、dy，缩放幅度，周期（秒）
-  function geometry() {
+  // 四团底光（单位换算成画布像素）：中心、半径、漂移幅度、横竖周期、角度、转动幅度与周期、相位、颜色序号
+  function blobs(s) {
     const vm = VM / 100, vw = W / 100, vh = H / 100;
+    const L = (cx, cy, rx, ry, ax, ay, px, py, rot, ramp, rp, ph, ci) => {
+      const br = 0.82 * (1 + 0.1 * Math.sin(TAU * s / (px * 0.8) + ph));
+      return [cx + ax * Math.sin(TAU * s / px + ph), cy + ay * Math.sin(TAU * s / py + ph * 1.7), rx * br, ry * br, rot + ramp * Math.sin(TAU * s / rp + ph), ci];
+    };
     return [
-      [3 * vm, 9 * vm, 65 * vm, 35 * vm, 31 * vm, 9.8 * vm, 0.14, 22],
-      [100 * vw + 5 * vm, 10 * vh + 31 * vm, 55 * vm, 31 * vm, -22 * vm, 9.9 * vm, -0.12, 27],
-      [4 * vm, 100 * vh - 13 * vm, 60 * vm, 33 * vm, 21.6 * vm, -7.9 * vm, 0.12, 24],
-      [100 * vw - vm, 100 * vh + 4 * vm, 55 * vm, 30 * vm, -24.2 * vm, -9.6 * vm, 0.16, 31],
+      L(3 * vm, 9 * vm, 68 * vm, 38 * vm, 20 * vm, 9 * vm, 23, 29, -0.3, 0.25, 41, 0, 0),
+      L(100 * vw + 5 * vm, 10 * vh + 31 * vm, 58 * vm, 32 * vm, 16 * vm, 12 * vm, 27, 21, 0.4, 0.3, 37, 1.3, 1),
+      L(4 * vm, 100 * vh - 13 * vm, 62 * vm, 34 * vm, 18 * vm, 10 * vm, 25, 33, 0.2, 0.3, 45, 2.1, 2),
+      L(100 * vw - vm, 100 * vh + 4 * vm, 58 * vm, 31 * vm, 20 * vm, 10 * vm, 31, 26, -0.5, 0.25, 39, 3.4, 3),
     ];
+  }
+  // 一团椭圆光晕：中心、半径、角度、颜色（"r,g,b"）、不透明度
+  function glow(x, y, rx, ry, ang, c, a) {
+    const cs = Math.cos(ang), sn = Math.sin(ang);
+    ctx.setTransform(cs * rx, sn * rx, -sn * ry, cs * ry, x, y);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    for (const [o, k] of STOPS) g.addColorStop(o, `rgba(${c},${(k * a).toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(-1, -1, 2, 2);
+  }
+  // 光带：沿一条二次贝塞尔弧线排一串细长光晕，中间粗、两头淡，每段各自微微闪烁
+  function ribbon(s, p0, p1, p2, wid, cA, cB, alpha, n, seed) {
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const u = i / n, v = 1 - u;
+      pts.push([v * v * p0[0] + 2 * v * u * p1[0] + u * u * p2[0], v * v * p0[1] + 2 * v * u * p1[1] + u * u * p2[1]]);
+    }
+    for (let i = 0; i < n; i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], u = (i + 0.5) / n;
+      const c = cA.map((v, j) => Math.round(v + (cB[j] - v) * u)).join(',');
+      const shimmer = 0.72 + 0.28 * Math.sin(TAU * s / 6.5 + i * 0.85 + seed);
+      glow((x0 + x1) / 2, (y0 + y1) / 2, Math.hypot(x1 - x0, y1 - y0) * 1.1, wid * (0.55 + 0.45 * Math.sin(Math.PI * u)), Math.atan2(y1 - y0, x1 - x0), c,
+        alpha * shimmer * Math.pow(Math.sin(Math.PI * u), 0.7));
+    }
   }
   function draw(now) {
     const k = Math.min(1, Math.max(0, (now - t0) / MIX)), e = k * k * (3 - 2 * k);
     const mix = (a, b) => a.map((v, i) => v + (b[i] - v) * e);
-    cur = { cols: to.cols.map((c, i) => mix(from.cols[i], c)), base: mix(from.base, to.base), alpha: from.alpha + (to.alpha - from.alpha) * e };
+    cur = { cols: to.cols.map((c, i) => mix(from.cols[i], c)), base: mix(from.base, to.base), alpha: from.alpha + (to.alpha - from.alpha) * e, dark: to.dark };
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = `rgb(${cur.base.map(Math.round).join(',')})`;
     ctx.fillRect(0, 0, W, H);
-    ctx.globalAlpha = cur.alpha;
-    const s = still ? 0 : now / 1000;
-    geometry().forEach(([cx, cy, rx, ry, dx, dy, ds, period], i) => {
-      const p = 0.5 - 0.5 * Math.cos(Math.PI * s / period), sc = 1 + ds * p;
-      ctx.setTransform(rx * sc, 0, 0, ry * sc, cx + dx * p, cy + dy * p);
-      const c = cur.cols[i].map(Math.round).join(',');
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-      g.addColorStop(0, `rgba(${c},1)`);
-      g.addColorStop(1, `rgba(${c},0)`);
-      ctx.fillStyle = g;
-      ctx.fillRect(-1, -1, 2, 2);
-    });
+    ctx.globalCompositeOperation = cur.dark ? 'lighter' : 'source-over';
+    const s = still ? 0 : now / 1000, dark = cur.dark;
+    const hc = cur.cols.map(c => hue(c, 12 * Math.sin(TAU * s / 70)));
+    for (const [x, y, rx, ry, ang, ci] of blobs(s)) glow(x, y, rx, ry, ang, hc[ci].join(','), cur.alpha * (dark ? 0.95 : 0.9));
+    const vw = W / 100, vh = H / 100, vm = VM / 100, sw = (p, a) => a * Math.sin(TAU * s / p);
+    ribbon(s, [-12 * vw, 34 * vh + sw(29, 3 * vh)], [38 * vw + sw(37, 10 * vw), 10 * vh + sw(23, 6 * vh)], [112 * vw, 24 * vh + sw(31, 4 * vh)], 6.5 * vm, hc[3], hc[2], dark ? 0.55 : 0.4, 12, 0);
+    ribbon(s, [-12 * vw, 70 * vh + sw(33, 3 * vh)], [55 * vw + sw(41, 12 * vw), 56 * vh + sw(27, 5 * vh)], [112 * vw, 80 * vh + sw(35, 4 * vh)], 5.5 * vm, hc[0], hc[1], dark ? 0.45 : 0.32, 12, 2);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
   }
   function loop(now) {
     raf = 0;
@@ -6015,12 +6053,11 @@ const Art = (() => {
 // 结果是两块静止的小画布，切换时只做淡入淡出：不额外耗电，滑动、翻页也不受影响。
 const WALL_MAX = 12, WALL_EDGE = 1600;
 const WALL_BLUR = [['轻', 3], ['中', 4], ['重', 5]];
-const wallDark = () => { const t = document.documentElement.dataset.theme; return t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches); };
 const Wall = (() => {
   let seq = 0, key = '', size = [0, 0], started = false;
   const box = () => $('#wall');
-  // 没选过就用插画，并跟着主题换：深色「星夜」、浅色「樱花」
-  function mode() { const b = loadPrefs().bg; return b === 'mine' || b === 'aurora' || (b && Art.scenes[b]) ? b : wallDark() ? 'night' : 'sakura'; }
+  // 没选过就是极光（1.6.1 起；1.6.0 时默认插画，用户试过后觉得极光好看）
+  function mode() { const b = loadPrefs().bg; return b === 'mine' || (b && Art.scenes[b]) ? b : 'aurora'; }
   const scaleTo = (src, w, h) => {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, w, h);
@@ -6126,11 +6163,10 @@ const Wall = (() => {
       if (Math.abs(innerWidth - w0) > 30 || Math.abs(innerHeight - h0) > 140) render(true);  // 手机工具栏收起这种小变化不用重画
     }, 300);
   });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(apply, 0));
   return { mode, apply, next, add, remove, list, start: async () => { started = true; await next(false); await apply(); } };
 })();
 const WALL_NAMES = { aurora: '极光（会流动）', mine: '我的图片' };
-const wallLabel = () => { const m = Wall.mode(); return WALL_NAMES[m] || ('插画 · ' + Art.scenes[m].name + (loadPrefs().bg ? '' : '（跟着深色 / 浅色自动换）')); };
+const wallLabel = () => { const m = Wall.mode(); return WALL_NAMES[m] || ('插画 · ' + Art.scenes[m].name); };
 
 // 设置里的「背景」：挑一个，马上在后面看到效果
 async function openBackgroundPicker(onChange) {
