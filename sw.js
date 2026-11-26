@@ -1,7 +1,7 @@
 // 验证码保险箱 · 离线缓存（Service Worker）
 // 只缓存程序自己的这几个文件，让手机没网时也能打开 App。它不读取、不保存、不发送任何保险箱数据。
 // 发布新版本时改 VERSION（与 index.html 里的 APP_VERSION 一致）：手机上会提示「有新版本」，点了才换成新版。
-const VERSION = '1.5.1';
+const VERSION = '1.6.0';
 const CACHE = 'codevault-' + VERSION;
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
